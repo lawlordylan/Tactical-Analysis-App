@@ -1,0 +1,17 @@
+{
+  "name": "tactical-analysis-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prepare and present match analysis sessions from video clips. Offline-first PWA, all data stays on the device.",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/build.mjs --serve",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "esbuild tests/zip.test.ts --bundle --platform=node --format=esm --outfile=dist-test/zip.test.mjs --log-level=warning && node dist-test/zip.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "typescript": "^6.0.0"
+  }
+}
