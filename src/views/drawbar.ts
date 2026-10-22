@@ -1,9 +1,12 @@
 // Drawing toolbar shared by present mode (tool rail) and the editor.
+import { toast } from '../lib/dialogs';
 import { h, icon } from '../lib/dom';
-import { Annotator, COLORS, type DrawTool } from '../lib/draw';
+import { Annotator, COLORS, type Tool } from '../lib/draw';
+import { detectorLoaded, findPlayerRing, loadDetector } from '../lib/detect';
 import { isTyping } from '../lib/util';
 
-const TOOLS: { tool: DrawTool; icon: string; label: string; key: string }[] = [
+const TOOLS: { tool: Tool; icon: string; label: string; key: string }[] = [
+  { tool: 'auto', icon: 'auto', label: 'Auto-ring: tap a player', key: 'R' },
   { tool: 'arrow', icon: 'arrow', label: 'Arrow', key: 'A' },
   { tool: 'line', icon: 'line', label: 'Line', key: 'L' },
   { tool: 'circle', icon: 'circle', label: 'Ring a player', key: 'C' },
@@ -16,14 +19,25 @@ const remembered = { color: COLORS[0].value, thick: false, dashed: false };
 export interface DrawBar {
   el: HTMLElement;
   refresh(): void;
-  setTool(tool: DrawTool | null): void;
+  setTool(tool: Tool | null): void;
   /** Handles drawing keyboard shortcuts. Returns true if the key was used. */
   handleKey(e: KeyboardEvent): boolean;
   destroy(): void;
 }
 
-export function drawBar(a: Annotator, opts: { cls?: string; onToolChange?: (tool: DrawTool | null) => void; extra?: HTMLElement[] } = {}): DrawBar {
+export function drawBar(
+  a: Annotator,
+  opts: { cls?: string; video?: HTMLVideoElement; onToolChange?: (tool: Tool | null) => void; extra?: HTMLElement[] } = {},
+): DrawBar {
   a.style = { ...remembered };
+  const video = opts.video;
+  if (video) {
+    a.autoRing = (nx, ny) => findPlayerRing(video, nx, ny);
+    a.onAutoMiss = (reason, err) => {
+      if (reason === 'error') console.warn('Auto-ring failed', err);
+      toast(reason === 'error' ? "The player finder couldn't start, so a plain ring was placed" : 'No player found there, so a plain ring was placed');
+    };
+  }
 
   const toolBtns = TOOLS.map((t) =>
     h(
@@ -118,7 +132,12 @@ export function drawBar(a: Annotator, opts: { cls?: string; onToolChange?: (tool
     refresh();
   }
 
-  function setTool(tool: DrawTool | null) {
+  function setTool(tool: Tool | null) {
+    if (tool === 'auto' && !detectorLoaded()) {
+      // Start loading now so the first tap is quick. Downloads once, then works offline.
+      toast('Getting the player finder ready…');
+      loadDetector().catch(() => {});
+    }
     a.setTool(tool);
     closePop();
     refresh();

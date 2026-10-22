@@ -13,5 +13,8 @@
   "devDependencies": {
     "esbuild": "^0.28.0",
     "typescript": "^6.0.0"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.1.1"
   }
 }

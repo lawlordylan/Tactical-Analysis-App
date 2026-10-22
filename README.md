@@ -14,6 +14,7 @@ Working now:
 - Add clips (button or drag & drop), set title and comments, reorder and delete slides
 - Add shortcuts at the current playhead, rename them, move them, delete them
 - Present mode: the clip has its own uncovered area, with the title bar above it, playback controls below it, and shortcuts and comments in a side panel (below the clip on portrait phones). Previous/next clip, 1× / 0.5× / 0.25× speed, frame-by-frame stepping, optional fullscreen. A drawing tool rail sits beside the clip (above it on portrait phones)
+- **Auto-ring**: tap a player and a ring snaps to them (on-device player detection, works offline after first use)
 - Drawing on the video: arrows, lines, player rings and freehand, in five colours, solid or dashed (for runs), normal or thick. Undo and clear
 - Export a session to one `.analysis` file, import it on another device
 - Installable and works offline (PWA)
@@ -39,6 +40,7 @@ Target browsers for the POC: Chrome/Edge on desktop and Chrome on Android. iPhon
 | Fullscreen | F |
 | Exit | Esc |
 
+| Auto-ring a player | R, then tap the player |
 | Drawing tools: arrow, line, ring, freehand | A, L, C, P (press again to put the tool down) |
 | Dashed / solid | D |
 | Undo · clear drawing | Z (or Ctrl+Z) · X |
@@ -53,6 +55,7 @@ Click or tap the clip to play / pause. With a drawing tool selected, the clip is
 - **Present**: jumping to a shortcut (tap it or press its number) shows its drawing. Frame stepping keeps it on screen; playing or seeking away clears it, so the next freeze-frame starts clean.
 - You can also draw live while presenting. Live drawings are not saved, so the prepared session stays as you made it.
 - A tap with the ring tool drops a standard-size ring; drag to size it.
+- **Auto-ring** (the first tool): tap a player and the app finds them and draws the ring for you: a ring at the feet for players in a wide shot, an oval around the whole player in a close-up. If nobody is found where you tapped, you get a normal ring there instead. Dragging with this tool still sizes a ring by hand. Rings it draws are ordinary rings: undo, colour, dashed and saving all work the same.
 - Drawings are stored relative to the video picture, so they line up with the same players on any screen, in any orientation, and after export / import.
 
 **Clip format:** H.264 MP4 plays everywhere. iPhone recordings (HEVC/.mov) may not play in Chrome on Windows; re-export them as H.264 MP4.
@@ -101,6 +104,7 @@ src/
     zip.ts           streaming ZIP writer + random-access reader (ZIP64-capable)
     media.ts         thumbnails, duration, frame-rate detection, frame stepping
     draw.ts          drawing layer: canvas over the video, shapes, undo
+    detect.ts        auto-ring: find the player under a tap
     dom.ts, dialogs.ts, util.ts
   sw.js              service worker (offline cache), filled in at build time
 scripts/build.mjs    esbuild bundle + index.html + service worker precache list
@@ -117,6 +121,18 @@ Club green `#016701` (taken from the crest) and white, on a deep green-black bas
 - Type is Inter (bundled in `public/fonts/`, SIL Open Font License) so it looks the same on every device and works offline.
 
 To change colours, edit the variables at the top of `src/styles.css`.
+
+### Auto-ring (player detection)
+
+`src/lib/detect.ts`. A small person detector, Google MediaPipe's ObjectDetector with **EfficientDet-Lite0 (int8)**, runs on the device; no image ever leaves it.
+
+- **Zoomed crop around the tap.** The detector works on a 320 × 320 picture, so in a wide shot distant players are too small to find. Because we know where the user tapped, we crop around the tap first, which makes them big enough. If the player found is cut off by the crop, it re-centres on them; if the box looks like only a pair of legs (a close-up player tapped at the feet), it checks one zoom level out.
+- **Tested** on 38 hand-marked players in wide, medium, close-up and crowded match photos: taps on the chest found the right player 100% of the time, off-centre taps 95%, taps on the feet 87%. The crop approach beat detecting on the whole frame (79–87%) and the larger EfficientDet-Lite2 model, at about a third of the time.
+- **Runs on CPU** (WebAssembly). The int8 model is the smallest and fastest there; MediaPipe's GPU path doesn't run int8 models correctly.
+- **Size and offline.** The model (`public/detector/efficientdet_lite0_int8.tflite`, 4.6 MB) is in the repo. The runtime (`@mediapipe/tasks-vision`, ~13 MB of WebAssembly) comes from npm and is copied to `dist/detector/wasm` at build time. Neither is downloaded until someone first picks the tool; the service worker then keeps them for offline use.
+- Licences: MediaPipe and the EfficientDet-Lite model are Apache 2.0.
+
+`.github/workflows/fetch-detector-assets.yml` is a development helper for environments without internet access: run it from the Actions tab and it commits the runtime, models and some openly licensed test photos to a `dev-detector-assets` branch.
 
 ### Storage
 

@@ -2,6 +2,9 @@
 // The cache version and precache list below are filled in by scripts/build.mjs.
 const CACHE = 'tactical-analysis-__VERSION__';
 const PRECACHE = __PRECACHE__;
+// Player-finder runtime and model: cached on first use, kept across app updates
+// until the runtime version changes.
+const DETECTOR_CACHE = 'ta-detector-__DETECTOR_VERSION__';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -11,7 +14,13 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('tactical-analysis-') && k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((k) => (k.startsWith('tactical-analysis-') && k !== CACHE) || (k.startsWith('ta-detector-') && k !== DETECTOR_CACHE))
+            .map((k) => caches.delete(k)),
+        ),
+      )
       .then(() => self.clients.claim()),
   );
 });
@@ -30,6 +39,23 @@ self.addEventListener('fetch', (event) => {
           return res;
         })
         .catch(() => caches.match('./')),
+    );
+    return;
+  }
+
+  // Player finder files: cache on first use.
+  if (new URL(req.url).pathname.includes('/detector/')) {
+    event.respondWith(
+      caches.open(DETECTOR_CACHE).then((c) =>
+        c.match(req).then(
+          (hit) =>
+            hit ||
+            fetch(req).then((res) => {
+              if (res.ok) c.put(req, res.clone());
+              return res;
+            }),
+        ),
+      ),
     );
     return;
   }

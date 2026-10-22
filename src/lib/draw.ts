@@ -8,6 +8,10 @@ import type { DrawShape, DrawTool } from './types';
 
 export type { DrawShape, DrawTool };
 
+/** Tools the user can pick. 'auto' rings the player under a tap (see detect.ts). */
+export type Tool = DrawTool | 'auto';
+export type AutoRing = (nx: number, ny: number) => Promise<[number, number, number, number] | null>;
+
 export const COLORS = [
   { value: '#ffffff', name: 'White' },
   { value: '#ffd43b', name: 'Yellow' },
@@ -144,7 +148,14 @@ export class Annotator {
   private start: [number, number] = [0, 0];
   private ro: ResizeObserver;
   private dpr = 1;
-  tool: DrawTool | null = null;
+  tool: Tool | null = null;
+  /** Finds the player at a tapped point, for the 'auto' tool. */
+  autoRing?: AutoRing;
+  /** Called when auto-ring couldn't find a player (or failed) and a plain ring was placed instead. */
+  onAutoMiss?: (reason: 'none' | 'error', err?: unknown) => void;
+  private pending: { x: number; y: number; raf: number } | null = null;
+  /** Bumped whenever the shown drawing is replaced, so a slow auto-ring can't land on the wrong one. */
+  private gen = 0;
   style: DrawStyle = { color: COLORS[0].value, thick: false, dashed: false };
   /** Called after every change made by drawing, undo or clear. */
   onChange?: (shapes: DrawShape[]) => void;
@@ -200,7 +211,51 @@ export class Annotator {
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const list = this.draft ? [...this.shapes, this.draft] : this.shapes;
-    if (list.length) paint(ctx, list, this.rect());
+    const r = this.rect();
+    if (list.length) paint(ctx, list, r);
+    if (this.pending) {
+      // "Looking…" indicator: a spinning dashed ring at the tap.
+      const rad = Math.max(10, r.h * 0.03);
+      ctx.save();
+      ctx.strokeStyle = this.style.color;
+      ctx.lineWidth = Math.max(2, r.h * 0.005);
+      ctx.setLineDash([rad * 0.5, rad * 0.4]);
+      ctx.lineDashOffset = -performance.now() / 30;
+      ctx.shadowColor = 'rgba(0,0,0,.6)';
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.arc(r.x + this.pending.x * r.w, r.y + this.pending.y * r.h, rad, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  get busy() {
+    return !!this.pending;
+  }
+
+  private async runAuto(x: number, y: number, base: Omit<DrawShape, 't' | 'p'>) {
+    const spin = () => {
+      if (!this.pending) return;
+      this.render();
+      this.pending.raf = requestAnimationFrame(spin);
+    };
+    const gen = this.gen;
+    this.pending = { x, y, raf: 0 };
+    spin();
+    let ring: [number, number, number, number] | null = null;
+    let failed: unknown = null;
+    try {
+      ring = this.autoRing ? await this.autoRing(x, y) : null;
+    } catch (e) {
+      failed = e ?? new Error('Auto-ring failed');
+    }
+    if (gen !== this.gen) return;
+    if (this.pending) cancelAnimationFrame(this.pending.raf);
+    this.pending = null;
+    const p = ring ? ring.map(round) : [x, y, 0.035, 0.02];
+    this.commit([...this.shapes, { t: 'circle', ...base, p }]);
+    if (!ring) this.onAutoMiss?.(failed ? 'error' : 'none', failed);
   }
 
   getShapes(): DrawShape[] {
@@ -210,6 +265,9 @@ export class Annotator {
   /** Replace what's shown. Not undoable; use for loading a saved drawing. */
   setShapes(shapes: DrawShape[] | undefined) {
     this.cancelDraft();
+    this.gen++;
+    if (this.pending) cancelAnimationFrame(this.pending.raf);
+    this.pending = null;
     this.shapes = (shapes ?? []).map((s) => ({ ...s, p: [...s.p] }));
     this.history = [];
     this.render();
@@ -244,7 +302,7 @@ export class Annotator {
     this.commit([]);
   }
 
-  setTool(tool: DrawTool | null) {
+  setTool(tool: Tool | null) {
     this.tool = tool;
     this.canvas.classList.toggle('active', !!tool);
     if (!tool) this.cancelDraft();
@@ -257,7 +315,7 @@ export class Annotator {
   }
 
   private down = (e: PointerEvent) => {
-    if (!this.tool || this.pointerId !== null || e.button > 0) return;
+    if (!this.tool || this.pointerId !== null || e.button > 0 || this.pending) return;
     e.preventDefault();
     this.pointerId = e.pointerId;
     this.canvas.setPointerCapture(e.pointerId);
@@ -266,7 +324,7 @@ export class Annotator {
     this.start = [x, y];
     const base = { c: this.style.color, w: (this.style.thick ? 2 : 1) as 1 | 2, ...(this.style.dashed && this.tool !== 'pen' ? { d: true } : {}) };
     if (this.tool === 'pen') this.draft = { t: 'pen', ...base, p: [x, y] };
-    else if (this.tool === 'circle') this.draft = { t: 'circle', ...base, p: [x, y, 0, 0] };
+    else if (this.tool === 'circle' || this.tool === 'auto') this.draft = { t: 'circle', ...base, p: [x, y, 0, 0] };
     else this.draft = { t: this.tool, ...base, p: [x, y, x, y] };
     this.render();
   };
@@ -302,8 +360,16 @@ export class Annotator {
     let keep = true;
     if (d.t === 'line' || d.t === 'arrow') keep = Math.hypot(d.p[2] - d.p[0], d.p[3] - d.p[1]) > 0.01;
     if (d.t === 'circle') {
+      const tapped = d.p[2] < 0.006 && d.p[3] < 0.006;
+      if (tapped && this.tool === 'auto') {
+        // Tap with auto-ring: find the player. (Dragging still sizes a ring by hand.)
+        const { t: _t, p: _p, ...base } = d;
+        this.render();
+        void this.runAuto(d.p[0], d.p[1], base);
+        return;
+      }
       // A tap with the circle tool drops a standard-size player ring.
-      if (d.p[2] < 0.006 && d.p[3] < 0.006) {
+      if (tapped) {
         d.p[2] = 0.035;
         d.p[3] = 0.02;
       }
@@ -319,6 +385,8 @@ export class Annotator {
   };
 
   destroy() {
+    if (this.pending) cancelAnimationFrame(this.pending.raf);
+    this.pending = null;
     this.ro.disconnect();
     this.video.removeEventListener('loadedmetadata', this.resizeBound);
     this.canvas.remove();

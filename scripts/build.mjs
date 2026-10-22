@@ -3,7 +3,7 @@
 //   node scripts/build.mjs          -> production build into dist/
 //   node scripts/build.mjs --serve  -> watch + local dev server
 import * as esbuild from 'esbuild';
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, relative } from 'node:path';
 
@@ -14,6 +14,22 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 rmSync(outdir, { recursive: true, force: true });
 mkdirSync(outdir, { recursive: true });
 cpSync('public', outdir, { recursive: true });
+
+// Auto-ring player finder: MediaPipe's WebAssembly runtime is served from
+// dist/detector/wasm next to the model. These files are large (~13 MB each), so
+// they are not precached; the service worker caches them the first time the
+// tool is used.
+const VISION = 'node_modules/@mediapipe/tasks-vision';
+let visionVersion = 'none';
+if (existsSync(`${VISION}/wasm`)) {
+  visionVersion = JSON.parse(readFileSync(`${VISION}/package.json`, 'utf8')).version;
+  mkdirSync(join(outdir, 'detector/wasm'), { recursive: true });
+  for (const f of ['vision_wasm_internal.js', 'vision_wasm_internal.wasm', 'vision_wasm_nosimd_internal.js', 'vision_wasm_nosimd_internal.wasm']) {
+    cpSync(`${VISION}/wasm/${f}`, join(outdir, 'detector/wasm', f));
+  }
+} else {
+  console.warn('[build] @mediapipe/tasks-vision not installed: the auto-ring tool will not work. Run npm install.');
+}
 
 function listFiles(dir) {
   return readdirSync(dir).flatMap((f) => {
@@ -27,12 +43,13 @@ const htmlAndSw = {
   setup(build) {
     build.onEnd((result) => {
       if (result.errors.length || !result.metafile) return;
-      const outputs = Object.keys(result.metafile.outputs).map((p) => relative(outdir, p));
-      const js = outputs.find((p) => p.endsWith('.js') && !p.endsWith('.map'));
+      const meta = result.metafile.outputs;
+      const outputs = Object.keys(meta).map((p) => relative(outdir, p));
+      const js = relative(outdir, Object.keys(meta).find((p) => meta[p].entryPoint === 'src/main.ts'));
       const css = outputs.find((p) => p.endsWith('.css') && !p.endsWith('.map'));
       // Remove stale hashed bundles from previous watch rebuilds.
       for (const f of readdirSync(outdir)) {
-        if (/^app-.*\.(js|css)(\.map)?$/.test(f) && !outputs.includes(f)) rmSync(join(outdir, f));
+        if (/^(app|chunk)-.*\.(js|css)(\.map)?$/.test(f) && !outputs.includes(f)) rmSync(join(outdir, f));
       }
       const html = readFileSync('src/index.html', 'utf8')
         .replace('%CSS%', `./${css}`)
@@ -42,12 +59,13 @@ const htmlAndSw = {
 
       const files = listFiles(outdir)
         .map((p) => relative(outdir, p).split('\\').join('/'))
-        .filter((p) => p !== 'sw.js' && !p.endsWith('.map'));
+        .filter((p) => p !== 'sw.js' && !p.endsWith('.map') && !p.startsWith('detector/'));
       const hash = createHash('sha256');
       for (const f of files.sort()) hash.update(f).update(readFileSync(join(outdir, f)));
       const version = hash.digest('hex').slice(0, 10);
       const sw = readFileSync('src/sw.js', 'utf8')
         .replace('__VERSION__', version)
+        .replace('__DETECTOR_VERSION__', visionVersion)
         .replace('__PRECACHE__', JSON.stringify(['./', ...files.map((f) => './' + f)]));
       writeFileSync(join(outdir, 'sw.js'), sw);
       console.log(`[build] ${new Date().toLocaleTimeString()} ok (cache ${version})`);
@@ -62,6 +80,8 @@ const options = {
   format: 'esm',
   target: ['chrome110', 'firefox115', 'safari16'],
   entryNames: '[name]-[hash]',
+  chunkNames: 'chunk-[hash]',
+  splitting: true,
   minify: !serve,
   sourcemap: true,
   metafile: true,

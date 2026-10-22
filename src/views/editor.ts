@@ -250,7 +250,7 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
     const drawBtns = new Map<string, HTMLButtonElement>();
     const drawLabel = h('span', { class: 'draw-label' });
     const doneBtn = h('button', { class: 'btn primary', type: 'button', onclick: () => exitDraw() }, icon('check'), 'Done');
-    const bar = drawBar(ann, { cls: 'inline' });
+    const bar = drawBar(ann, { cls: 'inline', video });
     const drawTools = h('div', { class: 'player-tools draw-tools', hidden: true }, drawLabel, bar.el, h('span', { class: 'spacer' }), doneBtn);
 
     function showDrawing(shapes: Shortcut['drawing'], at: number | null) {

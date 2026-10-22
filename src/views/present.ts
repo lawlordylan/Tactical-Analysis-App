@@ -62,7 +62,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
   const ann = new Annotator(stage, video);
   /** Clip time the current drawing belongs to; null when nothing is drawn. */
   let shownAt: number | null = null;
-  const bar = drawBar(ann, { cls: 'rail' });
+  const bar = drawBar(ann, { cls: 'rail', video });
   const toolRail = h('div', { class: 'tool-rail', 'aria-label': 'Drawing tools' }, bar.el);
   ann.onStroke = () => {
     video.pause();
@@ -121,6 +121,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
         ['1 – 9', 'Jump to shortcut'],
         ['S', 'Change speed'],
         ['N', 'Show / hide panel'],
+        ['R', 'Auto-ring: tap a player'],
         ['A  L  C  P', 'Arrow, line, ring, freehand'],
         ['D', 'Dashed / solid line'],
         ['Z  ·  X', 'Undo  ·  clear drawing'],
