@@ -4,6 +4,9 @@ import { canShareFile, downloadFile, exportSession, importSession, FILE_EXT } fr
 import type { Session } from '../lib/types';
 import { fmtBytes } from '../lib/util';
 
+/** Club crest (Killeshin F.C.), served from public/. */
+export const CREST = './brand-crest.png';
+
 export function go(hash: string) {
   location.hash = hash;
 }

@@ -6,7 +6,7 @@ import { stepFrame, watchFps } from '../lib/media';
 import { addClips, deleteSlide, getSession, getSlides, moveSlide, saveSession, saveSlide } from '../lib/store';
 import type { Session, Slide } from '../lib/types';
 import { debounce, fmtBytes, fmtTime, isTyping, uid } from '../lib/util';
-import { go, runExport, startPresenting } from './actions';
+import { CREST, go, runExport, startPresenting } from './actions';
 
 export async function renderEditor(root: HTMLElement, sessionId: string, initialSlide?: string): Promise<() => void> {
   const loaded = await getSession(sessionId);
@@ -47,6 +47,7 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
       'header',
       { class: 'topbar' },
       iconBtn('back', 'All sessions', () => go('#/')),
+      h('img', { class: 'present-crest', src: CREST, alt: '' }),
       titleInput,
       h(
         'div',

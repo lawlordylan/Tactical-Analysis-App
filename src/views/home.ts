@@ -5,7 +5,7 @@ import { storageInfo } from '../lib/files';
 import { createSession, deleteSession, getSlide, listSessions } from '../lib/store';
 import type { Session } from '../lib/types';
 import { fmtBytes, fmtDate } from '../lib/util';
-import { go, pickAndImport, runExport, startPresenting } from './actions';
+import { CREST, go, pickAndImport, runExport, startPresenting } from './actions';
 
 export async function renderHome(root: HTMLElement): Promise<() => void> {
   const list = h('div', { class: 'session-grid' });
@@ -18,31 +18,47 @@ export async function renderHome(root: HTMLElement): Promise<() => void> {
     go(`#/session/${s.id}`);
   };
 
+  const importSession = async () => {
+    const s = await pickAndImport();
+    if (s) go(`#/session/${s.id}`);
+  };
+
   root.append(
     h(
       'header',
       { class: 'topbar' },
-      h('div', { class: 'brand' }, h('span', { class: 'brand-mark' }, icon('target')), h('span', null, 'Tactical Analysis')),
       h(
         'div',
-        { class: 'topbar-actions' },
-        h(
-          'button',
-          {
-            class: 'btn',
-            type: 'button',
-            onclick: async () => {
-              const s = await pickAndImport();
-              if (s) go(`#/session/${s.id}`);
-            },
-          },
-          icon('import'),
-          h('span', { class: 'label' }, 'Import'),
-        ),
-        h('button', { class: 'btn primary', type: 'button', onclick: newSession }, icon('plus'), h('span', { class: 'label' }, 'New session')),
+        { class: 'brand' },
+        h('img', { class: 'brand-crest', src: CREST, alt: '' }),
+        h('span', { class: 'brand-text' }, h('span', { class: 'brand-name' }, 'Killeshin FC'), h('span', { class: 'brand-sub' }, 'Match Analysis')),
       ),
     ),
-    h('main', { class: 'home' }, h('h1', { class: 'page-title' }, 'Sessions'), list, footer),
+    h(
+      'main',
+      { class: 'home' },
+      h(
+        'section',
+        { class: 'hero' },
+        h('img', { class: 'hero-crest', src: CREST, alt: 'Killeshin F.C. crest' }),
+        h(
+          'div',
+          { class: 'hero-text' },
+          h('span', { class: 'hero-kicker' }, 'Killeshin F.C. · Est 1983'),
+          h('h1', null, 'Match analysis'),
+          h('p', null, 'Add your match clips, mark the key moments, then present them to the squad.'),
+          h(
+            'div',
+            { class: 'hero-actions' },
+            h('button', { class: 'btn white', type: 'button', onclick: newSession }, icon('plus'), 'New session'),
+            h('button', { class: 'btn', type: 'button', onclick: importSession }, icon('import'), 'Import session'),
+          ),
+        ),
+      ),
+      h('h2', { class: 'page-title' }, 'Sessions'),
+      list,
+      footer,
+    ),
   );
 
   async function refresh() {
@@ -55,7 +71,7 @@ export async function renderHome(root: HTMLElement): Promise<() => void> {
           { class: 'empty' },
           h('div', { class: 'empty-icon' }, icon('film')),
           h('h2', null, 'No sessions yet'),
-          h('p', { class: 'muted' }, 'Create a session, add your match clips, mark the key moments, then present it to the squad.'),
+          h('p', { class: 'muted' }, 'Start with a new session for your latest match, or import one shared from another device.'),
           h('button', { class: 'btn primary', type: 'button', onclick: newSession }, icon('plus'), 'New session'),
         ),
       );
@@ -78,7 +94,7 @@ export async function renderHome(root: HTMLElement): Promise<() => void> {
       h(
         'button',
         { class: 'session-open', type: 'button', onclick: () => go(`#/session/${s.id}`), 'aria-label': `Open ${s.title}` },
-        h('div', { class: 'thumb' }, first?.thumb ? h('img', { src: first.thumb, alt: '' }) : icon('film')),
+        h('div', { class: 'thumb' }, first?.thumb ? h('img', { src: first.thumb, alt: '' }) : h('img', { class: 'thumb-crest', src: CREST, alt: '' })),
         h('div', { class: 'session-meta' }, h('h3', null, s.title), h('p', { class: 'muted small' }, `${n} clip${n === 1 ? '' : 's'} · ${fmtDate(s.updatedAt)}`)),
       ),
       h(

@@ -66,6 +66,8 @@ const options = {
   sourcemap: true,
   metafile: true,
   loader: { '.css': 'css' },
+  // Fonts and images referenced from CSS are served as-is from public/.
+  external: ['*.woff', '*.woff2', '*.png', '*.svg'],
   plugins: [htmlAndSw],
   logLevel: 'warning',
 };

@@ -1,6 +1,6 @@
-# Tactical Analysis
+# Killeshin FC · Match Analysis
 
-A lightweight app for preparing and presenting post-match analysis sessions.
+A lightweight app for preparing and presenting post-match analysis sessions, built for Killeshin F.C.
 
 Each **session** is a set of **slides**, like a slide deck. Every slide is one video clip with a title, comments, and optional **shortcuts**: named moments in the clip you can jump to while presenting.
 
@@ -91,6 +91,17 @@ src/
 scripts/build.mjs    esbuild bundle + index.html + service worker precache list
 tests/zip.test.ts    ZIP round-trip tests
 ```
+
+### Branding
+
+Club green `#016701` (taken from the crest) and white, on a deep green-black base.
+
+- `brand/` holds the source crest images and the transparent cut-out.
+- `public/brand-crest.png` is the crest used in the app; `public/brand-lines.png` is the white line-art watermark.
+- `public/icons/` are the app icons (crest on a club-green tile).
+- Type is Inter (bundled in `public/fonts/`, SIL Open Font License) so it looks the same on every device and works offline.
+
+To change colours, edit the variables at the top of `src/styles.css`.
 
 ### Storage
 

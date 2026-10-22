@@ -19,7 +19,7 @@ import { stepFrame, watchFps } from '../lib/media';
 import { getSession, getSlides, saveSlide } from '../lib/store';
 import type { Slide } from '../lib/types';
 import { fmtTime, isTyping } from '../lib/util';
-import { go } from './actions';
+import { CREST, go } from './actions';
 
 const SPEEDS = [1, 0.5, 0.25];
 let rememberedSpeed = 1;
@@ -109,6 +109,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
     h(
       'header',
       { class: 'present-top' },
+      h('img', { class: 'present-crest', src: CREST, alt: '' }),
       counter,
       title,
       h('span', { class: 'spacer' }),
