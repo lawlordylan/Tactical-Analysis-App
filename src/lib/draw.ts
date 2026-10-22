@@ -10,7 +10,8 @@ export type { DrawShape, DrawTool };
 
 /** Tools the user can pick. 'auto' rings the player under a tap (see detect.ts). */
 export type Tool = DrawTool | 'auto';
-export type AutoRing = (nx: number, ny: number) => Promise<[number, number, number, number] | null>;
+/** Resolves to circle points [cx, cy, rx, ry] or, for a feet ring, [cx, cy, rx, ry, beamHeight]; null if no player. */
+export type AutoRing = (nx: number, ny: number) => Promise<number[] | null>;
 
 export const COLORS = [
   { value: '#ffffff', name: 'White' },
@@ -51,20 +52,66 @@ function rgba(hex: string, a: number) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
-/** Draws shapes onto a 2D context whose picture area is `r` (in context pixels). */
-/** Per-shape animation: scale (rings) and opacity. */
-export type ShapeFx = (index: number) => { scale: number; alpha: number } | null;
+/** Per-shape draw-on animation progress, 0..1 (null = fully drawn). */
+export type ShapeFx = (index: number) => number | null;
 
-export function paint(ctx: CanvasRenderingContext2D, shapes: DrawShape[], r: Rect, fx?: ShapeFx) {
+const easeOut = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+let scratch: HTMLCanvasElement | null = null;
+
+/** Clip to a wedge that opens from the front of the ring, so the ring "draws itself on". */
+function sweepClip(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number, t: number) {
+  if (t >= 1) return;
+  const span = Math.PI * easeOut(t);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.ellipse(cx, cy, rx * 1.8 + 8, ry * 1.8 + 8, 0, Math.PI / 2 - span, Math.PI / 2 + span);
+  ctx.closePath();
+  ctx.clip();
+}
+
+/**
+ * Soft column of light rising from a floor ring. Drawn onto the "light" layer,
+ * which is screen-blended over the video so it brightens the player like light.
+ */
+function paintBeam(light: CanvasRenderingContext2D, cx: number, cy: number, rx: number, height: number, color: string, t: number) {
+  const e = easeOut(t);
+  if (e <= 0) return;
+  const w = Math.ceil(rx * 2.1), h = Math.ceil(height * e);
+  if (w < 2 || h < 2) return;
+  scratch ??= document.createElement('canvas');
+  scratch.width = w;
+  scratch.height = h;
+  const l = scratch.getContext('2d')!;
+  const a = 0.42 * e;
+  const v = l.createLinearGradient(0, h, 0, 0);
+  v.addColorStop(0, rgba(color, a));
+  v.addColorStop(0.45, rgba(color, a * 0.38));
+  v.addColorStop(1, rgba(color, 0));
+  l.fillStyle = v;
+  l.fillRect(0, 0, w, h);
+  l.globalCompositeOperation = 'destination-in';
+  const hz = l.createLinearGradient(0, 0, w, 0);
+  hz.addColorStop(0, 'rgba(0,0,0,0)');
+  hz.addColorStop(0.28, 'rgba(0,0,0,1)');
+  hz.addColorStop(0.72, 'rgba(0,0,0,1)');
+  hz.addColorStop(1, 'rgba(0,0,0,0)');
+  l.fillStyle = hz;
+  l.fillRect(0, 0, w, h);
+  light.drawImage(scratch, cx - w / 2, cy - h);
+}
+
+/**
+ * Draws shapes onto a 2D context whose picture area is `r` (in context pixels).
+ * `light`, if given, receives light effects (the auto-ring beam).
+ */
+export function paint(ctx: CanvasRenderingContext2D, shapes: DrawShape[], r: Rect, fx?: ShapeFx, light?: CanvasRenderingContext2D) {
   for (let si = 0; si < shapes.length; si++) {
     const s = shapes[si];
-    const anim = fx?.(si);
-    if (anim && anim.alpha <= 0) continue;
+    const anim = fx?.(si) ?? 1;
     const lw = Math.max(2, r.h * (s.w === 2 ? 0.011 : 0.0065));
     const X = (i: number) => r.x + s.p[i] * r.w;
     const Y = (i: number) => r.y + s.p[i + 1] * r.h;
     ctx.save();
-    if (anim) ctx.globalAlpha = anim.alpha;
     ctx.lineWidth = lw;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -111,49 +158,47 @@ export function paint(ctx: CanvasRenderingContext2D, shapes: DrawShape[], r: Rec
         ctx.stroke();
       }
     } else if (s.t === 'circle') {
-      const k = anim?.scale ?? 1;
       const cx = X(0), cy = Y(0);
-      const rx = Math.max(1, Math.abs(s.p[2] * r.w)) * k;
-      const ry = Math.max(1, Math.abs(s.p[3] * r.h)) * k;
-      const ring = (f: number) => {
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, rx * f, ry * f, 0, 0, Math.PI * 2);
-      };
-      if (s.g) {
-        // Glowing highlight: a soft spotlight inside, a halo in the ring's own
-        // colour, a crisp core, and a faint outer ring.
-        ctx.save();
-        ctx.shadowColor = 'transparent';
-        ctx.translate(cx, cy);
-        ctx.scale(1, ry / rx);
-        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
-        grad.addColorStop(0, rgba(s.c, 0.32));
-        grad.addColorStop(0.7, rgba(s.c, 0.12));
-        grad.addColorStop(1, rgba(s.c, 0));
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(0, 0, rx, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        ctx.save();
-        ctx.shadowColor = rgba(s.c, 0.95);
-        ctx.shadowBlur = lw * 5;
-        ring(1);
-        ctx.stroke();
-        ctx.lineWidth = lw * 0.55;
-        ctx.strokeStyle = rgba(s.c, 0.45);
-        ctx.shadowBlur = lw * 3;
-        ring(1.28);
-        ctx.stroke();
-        ctx.restore();
-
+      const rx = Math.max(1, Math.abs(s.p[2] * r.w));
+      const ry = Math.max(1, Math.abs(s.p[3] * r.h));
+      const beam = s.g && s.p[4] ? s.p[4] * r.h : 0;
+      if (s.g && beam) {
+        // Auto-ring on a player's feet: a light beam rising through them, and a
+        // ring painted on the pitch (bright at the front, fading at the back).
+        if (light) paintBeam(light, cx, cy, rx, beam, s.c, (anim - 0.25) / 0.75);
+        sweepClip(ctx, cx, cy, rx, ry, anim);
+        const t = lw * 1.5;
+        const g = ctx.createLinearGradient(0, cy - ry, 0, cy + ry);
+        g.addColorStop(0, rgba(s.c, 0.4));
+        g.addColorStop(0.5, rgba(s.c, 0.75));
+        g.addColorStop(1, rgba(s.c, 1));
         ctx.shadowColor = 'rgba(0, 0, 0, .35)';
         ctx.shadowBlur = lw;
-        ring(1);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, cy, Math.max(1, rx - t), Math.max(1, ry - t * 0.55), 0, 0, Math.PI * 2, true);
+        ctx.fill('evenodd');
+        ctx.shadowColor = 'transparent';
+        ctx.fillStyle = rgba(s.c, 0.14);
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, Math.max(1, rx - t), Math.max(1, ry - t * 0.55), 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (s.g) {
+        // Auto-ring on a close-up player: a crisp oval with a dark keyline.
+        sweepClip(ctx, cx, cy, rx, ry, anim);
+        ctx.shadowColor = 'transparent';
+        ctx.lineWidth = lw + 4;
+        ctx.strokeStyle = 'rgba(0, 0, 0, .45)';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.lineWidth = lw;
+        ctx.strokeStyle = s.c;
         ctx.stroke();
       } else {
-        ring(1);
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
         ctx.save();
         ctx.shadowColor = 'transparent';
         ctx.fillStyle = rgba(s.c, 0.16);
@@ -187,6 +232,9 @@ export function sanitizeShapes(input: unknown): DrawShape[] {
 export class Annotator {
   readonly canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  /** Screen-blended layer under the drawing, for light effects. */
+  private light: HTMLCanvasElement;
+  private lightCtx: CanvasRenderingContext2D;
   private shapes: DrawShape[] = [];
   private history: DrawShape[][] = [];
   private draft: DrawShape | null = null;
@@ -219,7 +267,11 @@ export class Annotator {
     this.canvas.className = 'draw-layer';
     this.canvas.setAttribute('aria-hidden', 'true');
     this.ctx = this.canvas.getContext('2d')!;
-    stage.append(this.canvas);
+    this.light = document.createElement('canvas');
+    this.light.className = 'draw-light';
+    this.light.setAttribute('aria-hidden', 'true');
+    this.lightCtx = this.light.getContext('2d')!;
+    stage.append(this.light, this.canvas);
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(stage);
     video.addEventListener('loadedmetadata', this.resizeBound);
@@ -235,8 +287,8 @@ export class Annotator {
   private resize() {
     const r = this.stage.getBoundingClientRect();
     this.dpr = Math.min(3, window.devicePixelRatio || 1);
-    this.canvas.width = Math.max(1, Math.round(r.width * this.dpr));
-    this.canvas.height = Math.max(1, Math.round(r.height * this.dpr));
+    this.canvas.width = this.light.width = Math.max(1, Math.round(r.width * this.dpr));
+    this.canvas.height = this.light.height = Math.max(1, Math.round(r.height * this.dpr));
     this.render();
   }
 
@@ -259,9 +311,10 @@ export class Annotator {
   render() {
     const { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    this.lightCtx.clearRect(0, 0, this.light.width, this.light.height);
     const list = this.draft ? [...this.shapes, this.draft] : this.shapes;
     const r = this.rect();
-    if (list.length) paint(ctx, list, r, this.pops.size ? (i) => this.popFx(i) : undefined);
+    if (list.length) paint(ctx, list, r, this.pops.size ? (i) => this.popFx(i) : undefined, this.lightCtx);
     if (this.pending) {
       // "Looking…" indicator: a spinning dashed ring at the tap.
       const rad = Math.max(10, r.h * 0.03);
@@ -279,11 +332,11 @@ export class Annotator {
     }
   }
 
-  /** Glow rings pop in: a quick overshoot from larger and transparent. */
+  /** Auto-rings draw themselves on: the ring sweeps round from the front, then the beam rises. */
   private popIn(indices: number[]) {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const now = performance.now();
     for (const i of indices) this.pops.set(i, now);
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return this.pops.clear();
     cancelAnimationFrame(this.popRaf);
     const tick = () => {
       this.render();
@@ -292,16 +345,15 @@ export class Annotator {
     this.popRaf = requestAnimationFrame(tick);
   }
 
-  private popFx(i: number) {
+  private popFx(i: number): number | null {
     const start = this.pops.get(i);
     if (start === undefined) return null;
-    const t = Math.min(1, (performance.now() - start) / 320);
+    const t = (performance.now() - start) / 700;
     if (t >= 1) {
       this.pops.delete(i);
       return null;
     }
-    const e = 1 - Math.pow(1 - t, 3);
-    return { scale: 1 + 0.45 * (1 - e), alpha: Math.min(1, t * 2.2) };
+    return t;
   }
 
   get busy() {
@@ -317,7 +369,7 @@ export class Annotator {
     const gen = this.gen;
     this.pending = { x, y, raf: 0 };
     spin();
-    let ring: [number, number, number, number] | null = null;
+    let ring: number[] | null = null;
     let failed: unknown = null;
     try {
       ring = this.autoRing ? await this.autoRing(x, y) : null;
@@ -464,6 +516,7 @@ export class Annotator {
   };
 
   destroy() {
+    this.light.remove();
     cancelAnimationFrame(this.popRaf);
     this.pops.clear();
     if (this.pending) cancelAnimationFrame(this.pending.raf);

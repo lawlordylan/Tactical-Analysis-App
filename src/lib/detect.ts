@@ -80,7 +80,7 @@ function pick(boxes: Box[], tx: number, ty: number): Box | null {
  * Finds the player at (nx, ny), given in 0..1 picture coordinates.
  * Returns a ring as [cx, cy, rx, ry] in picture coordinates, or null if no one is there.
  */
-export async function findPlayerRing(video: HTMLVideoElement, nx: number, ny: number): Promise<[number, number, number, number] | null> {
+export async function findPlayerRing(video: HTMLVideoElement, nx: number, ny: number): Promise<number[] | null> {
   const det = await loadDetector();
   const W = video.videoWidth, H = video.videoHeight;
   if (!W || !H) return null;
@@ -124,8 +124,9 @@ export async function findPlayerRing(video: HTMLVideoElement, nx: number, ny: nu
   const b = found;
   if (b.h < H * 0.4) {
     // Distant player: a flat ring on the ground at their feet (broadcast style).
+    // Fifth value: height of the light beam above the ring (feet to just above the head).
     const rx = Math.max(b.w * 0.72, b.h * 0.34);
-    return [(b.x + b.w / 2) / W, (b.y + b.h * 0.98) / H, rx / W, (rx * 0.34) / H];
+    return [(b.x + b.w / 2) / W, (b.y + b.h * 0.98) / H, rx / W, (rx * 0.34) / H, (b.h * 1.13) / H];
   }
   // Close-up: an oval around the whole player.
   return [(b.x + b.w / 2) / W, (b.y + b.h / 2) / H, (b.w * 0.62) / W, (b.h * 0.56) / H];
