@@ -13,7 +13,7 @@ Working now:
 - Create, rename and delete sessions
 - Add clips (button or drag & drop), set title and comments, reorder and delete slides
 - Add shortcuts at the current playhead, rename them, move them, delete them
-- Present mode: full screen, previous/next clip, shortcut buttons, 1× / 0.5× / 0.25× speed, frame-by-frame stepping, comments panel, auto-hiding controls
+- Present mode: the clip has its own uncovered area, with the title bar above it, playback controls below it, and shortcuts and comments in a side panel (below the clip on portrait phones). Previous/next clip, 1× / 0.5× / 0.25× speed, frame-by-frame stepping, optional fullscreen. An empty tool rail beside the clip is reserved for the Phase 2 drawing tools
 - Export a session to one `.analysis` file, import it on another device
 - Installable and works offline (PWA)
 
@@ -34,13 +34,13 @@ Target browsers for the POC: Chrome/Edge on desktop and Chrome on Android. iPhon
 | Previous / next clip | ↑ ↓ or PageUp / PageDown (presentation clickers work) |
 | Jump to shortcut | 1 – 9 |
 | Speed | S |
-| Comments | N |
+| Show / hide side panel | N |
 | Fullscreen | F |
 | Exit | Esc |
 
 In the editor: `,` and `.` step frames, `M` adds a shortcut at the current time.
 
-On touch screens, tap the video to hide or show the controls.
+Click or tap the clip to play / pause.
 
 **Clip format:** H.264 MP4 plays everywhere. iPhone recordings (HEVC/.mov) may not play in Chrome on Windows; re-export them as H.264 MP4.
 
