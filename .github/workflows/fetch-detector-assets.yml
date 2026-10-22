@@ -1,0 +1,79 @@
+name: Fetch detector assets (dev)
+
+# One-off helper for development environments without internet access.
+# Downloads the MediaPipe vision runtime, the object-detection models and a few
+# openly licensed football photos for testing, and commits them to the
+# `dev-detector-assets` branch. Nothing here is part of the deployed app.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download runtime, models and test photos
+        run: |
+          set -euo pipefail
+          mkdir -p out/models out/photos
+          cd out
+          npm pack @mediapipe/tasks-vision --silent > packname.txt
+          echo "tasks-vision: $(cat packname.txt)"
+          base=https://storage.googleapis.com/mediapipe-models/object_detector
+          curl -fsSL -o models/efficientdet_lite0_int8.tflite    $base/efficientdet_lite0/int8/latest/efficientdet_lite0.tflite
+          curl -fsSL -o models/efficientdet_lite0_float16.tflite $base/efficientdet_lite0/float16/latest/efficientdet_lite0.tflite
+          curl -fsSL -o models/efficientdet_lite2_int8.tflite    $base/efficientdet_lite2/int8/latest/efficientdet_lite2.tflite
+          curl -fsSL -o models/efficientdet_lite2_float16.tflite $base/efficientdet_lite2/float16/latest/efficientdet_lite2.tflite
+          curl -fsSL -o models/ssd_mobilenet_v2_float16.tflite   $base/ssd_mobilenet_v2/float16/latest/ssd_mobilenet_v2.tflite || true
+          ls -la models
+          sha256sum models/* > models/SHA256SUMS
+          python3 - <<'PY'
+          import json, urllib.request, urllib.parse, os
+          UA = {'User-Agent': 'KilleshinAnalysisDev/0.1 (github.com/lawlordylan/Tactical-Analysis-App)'}
+          queries = ['amateur football match players pitch', 'football match wide view stadium players',
+                     'soccer match green shirts', 'football corner kick penalty area players',
+                     'youth football match pitch', 'sunday league football']
+          seen, credits = set(), []
+          for q in queries:
+              params = {'action': 'query', 'format': 'json', 'generator': 'search', 'gsrnamespace': 6,
+                        'gsrsearch': f'filetype:bitmap {q}', 'gsrlimit': 12, 'prop': 'imageinfo',
+                        'iiprop': 'url|size|extmetadata', 'iiurlwidth': 1600}
+              url = 'https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode(params)
+              data = json.load(urllib.request.urlopen(urllib.request.Request(url, headers=UA)))
+              n = 0
+              for page in (data.get('query', {}).get('pages', {}) or {}).values():
+                  ii = (page.get('imageinfo') or [{}])[0]
+                  if page['title'] in seen or ii.get('width', 0) < 1200 or ii.get('width', 0) < ii.get('height', 1):
+                      continue
+                  seen.add(page['title'])
+                  meta = ii.get('extmetadata', {})
+                  lic = meta.get('LicenseShortName', {}).get('value', '')
+                  name = f"{len(credits):02d}.jpg"
+                  try:
+                      img = urllib.request.urlopen(urllib.request.Request(ii.get('thumburl') or ii['url'], headers=UA)).read()
+                  except Exception as e:
+                      print('skip', page['title'], e); continue
+                  open(f'photos/{name}', 'wb').write(img)
+                  credits.append({'file': name, 'title': page['title'], 'license': lic, 'source': ii.get('descriptionurl'),
+                                  'artist': meta.get('Artist', {}).get('value', ''), 'query': q})
+                  n += 1
+                  if n >= 4: break
+          json.dump(credits, open('photos/credits.json', 'w'), indent=1)
+          print(len(credits), 'photos')
+          PY
+      - name: Commit to dev-detector-assets branch
+        run: |
+          set -euo pipefail
+          cd out
+          git init -q -b dev-detector-assets
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Detector dev assets ($(cat packname.txt))"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" dev-detector-assets
