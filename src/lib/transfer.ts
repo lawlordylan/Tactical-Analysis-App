@@ -1,6 +1,7 @@
 // Export a session to a single .analysis file (a ZIP with session.json + clips)
 // and import one back.
 import * as db from './db';
+import { sanitizeShapes } from './draw';
 import { deleteVideo, getVideo, requestPersistence, storeVideo } from './files';
 import { getSlides, listSessions } from './store';
 import type { Session, SessionManifest, Slide, VideoRef } from './types';
@@ -50,7 +51,7 @@ async function buildEntries(session: Session): Promise<ZipInput[]> {
     manifest.slides.push({
       title: s.title,
       notes: s.notes,
-      shortcuts: s.shortcuts.map(({ title, time }) => ({ title, time })),
+      shortcuts: s.shortcuts.map(({ title, time, drawing }) => ({ title, time, ...(drawing?.length ? { drawing } : {}) })),
       duration: s.duration,
       fps: s.fps,
       thumb: s.thumb,
@@ -156,7 +157,10 @@ export async function importSession(file: Blob, onProgress?: (done: number, tota
         title: m.title ?? '',
         notes: m.notes ?? '',
         video,
-        shortcuts: (m.shortcuts ?? []).map((s) => ({ id: uid(), title: s.title ?? '', time: Number(s.time) || 0 })),
+        shortcuts: (m.shortcuts ?? []).map((s) => {
+          const drawing = sanitizeShapes(s.drawing);
+          return { id: uid(), title: s.title ?? '', time: Number(s.time) || 0, ...(drawing.length ? { drawing } : {}) };
+        }),
         duration: m.duration,
         fps: m.fps,
         thumb: m.thumb,

@@ -173,7 +173,7 @@ textarea.input { resize: vertical; min-height: 96px; }
 .add-clips { border-style: dashed; background: transparent; }
 
 .slide-detail { display: flex; flex-direction: column; gap: 14px; padding: 18px; max-width: 980px; width: 100%; }
-.player { position: relative; background: #000; border-radius: 12px; overflow: hidden; }
+.player { scroll-margin-top: 76px; position: relative; background: #000; border-radius: 12px; overflow: hidden; }
 .editor-video { display: block; width: 100%; max-height: 62dvh; background: #000; }
 .player-msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--text); background: rgba(0, 0, 0, .75); }
 .player-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -215,16 +215,17 @@ textarea.input { resize: vertical; min-height: 96px; }
   padding: 12px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
 }
 /* Reserved for Phase 2 drawing tools; takes no space while empty. */
-.tool-rail { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 8px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+.tool-rail { flex: none; display: flex; min-height: 0; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
 .tool-rail:empty { display: none; }
 .present-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 /* position: relative so a drawing canvas can later be layered exactly over the clip. */
 .stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; background: #000; border-radius: 12px; overflow: hidden; cursor: pointer; }
 .present-video { display: block; width: 100%; height: 100%; object-fit: contain; }
-.transport { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
-.controls { display: flex; align-items: center; gap: 10px; }
-.scrub-row { display: flex; align-items: center; gap: 10px; }
-.scrub { flex: 1; accent-color: var(--accent); height: 24px; cursor: pointer; }
+.transport { flex: none; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+.controls { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.scrub-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* width: 0 + flex: 1 lets the range input shrink below its built-in minimum width. */
+.scrub { flex: 1; width: 0; min-width: 40px; accent-color: var(--accent); height: 24px; cursor: pointer; }
 
 .ctl {
   display: inline-grid; place-items: center; width: 44px; height: 44px; flex: none;
@@ -272,8 +273,45 @@ textarea.input { resize: vertical; min-height: 96px; }
   .present-main { flex: none; }
   .stage { flex: none; aspect-ratio: var(--clip-ratio, 16 / 9); max-height: 56dvh; }
   .present-side { width: auto; overflow: visible; }
-  .tool-rail { flex-direction: row; }
+  .tool-rail { order: -1; }
 }
+
+
+/* ---------- drawing ---------- */
+.draw-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.draw-layer.active { pointer-events: auto; cursor: crosshair; touch-action: none; }
+.drawbar { display: flex; align-items: center; gap: 6px; }
+.drawbar.rail { flex-direction: column; padding: 8px 6px; overflow-y: auto; scrollbar-width: none; }
+.drawbar.rail::-webkit-scrollbar { display: none; }
+.drawbar.inline { flex-wrap: wrap; }
+.tool {
+  display: inline-grid; place-items: center; width: 42px; height: 42px; flex: none;
+  border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--text); cursor: pointer;
+}
+.tool:hover { background: var(--surface-2); }
+.tool.on { background: #fff; color: var(--flag-ink); }
+.tool:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tool:disabled { opacity: .3; cursor: default; background: transparent; }
+.tool-sep { flex: none; width: 24px; height: 1px; background: var(--border); margin: 2px auto; }
+.drawbar.inline .tool-sep { width: 1px; height: 24px; margin: 0 2px; }
+.swatch { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .85); box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
+.tool-pop {
+  position: fixed; z-index: 60; display: flex; gap: 8px; padding: 10px; border-radius: 14px;
+  background: var(--surface-2); border: 1px solid var(--border); box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
+}
+.swatch-btn { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; background: var(--c); cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+.swatch-btn.on { border-color: #fff; box-shadow: 0 0 0 2px var(--club-2); }
+.swatch-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Editor draw mode */
+.player.drawing { box-shadow: 0 0 0 2px #fff; }
+.player.drawing .editor-video { cursor: crosshair; }
+.draw-tools { padding: 6px 8px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+.draw-label { display: flex; align-items: center; gap: 8px; min-width: 0; margin-right: 4px; }
+.draw-label-text { font-weight: 700; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.static { cursor: default; }
+.draw-btn.has { color: var(--accent) !important; }
+.draw-btn.on { background: #fff !important; color: var(--flag-ink) !important; }
 
 /* ---------- dialogs ---------- */
 .dialog {
@@ -319,7 +357,18 @@ textarea.input { resize: vertical; min-height: 96px; }
 }
 @media (max-width: 420px) {
   .speed { min-width: 44px; padding: 0 6px; }
-  .controls .spacer:first-of-type { display: none; }
+  .present-top { gap: 6px; }
+  .present-top .ctl { width: 38px; height: 38px; }
+  .present-top .help-btn { display: none; }
+  .controls { gap: 4px; }
+  .controls .ctl { width: 38px; height: 38px; }
+  .controls .ctl-big { width: 46px; height: 46px; }
+  .transport { padding: 8px 8px; }
+}
+@media (max-width: 340px) {
+  .present-crest, .counter { display: none; }
+  .controls .ctl { width: 34px; height: 34px; }
+  .speed { min-width: 40px; }
 }
 /* Phones in landscape: compact bars so the clip keeps most of the height. */
 @media (max-height: 500px) {
@@ -327,15 +376,36 @@ textarea.input { resize: vertical; min-height: 96px; }
   .present-title { font-size: 16px; }
   .present-body { padding-top: 8px; gap: 8px; }
   .present-main { gap: 6px; }
-  .transport { flex-direction: row; align-items: center; gap: 10px; padding: 6px 10px; }
-  .scrub-row { flex: 1; }
-  .controls { gap: 6px; }
+  .transport { flex-direction: row; align-items: center; gap: 8px; padding: 6px 8px; }
+  .scrub-row { flex: 1; gap: 6px; }
+  .scrub-row .mono { font-size: 11px; }
+  .controls { flex: none; gap: 4px; }
+  .controls .spacer { display: none; }
+  .tool { width: 36px; height: 36px; }
+  .drawbar.rail { gap: 2px; padding: 4px; }
   .ctl { width: 36px; height: 36px; }
   .ctl-big { width: 42px; height: 42px; }
   .ctl-big .icon { width: 22px; height: 22px; }
-  .present-side { width: clamp(200px, 28vw, 280px); gap: 8px; }
+  .present-side { width: clamp(180px, 26vw, 260px); gap: 8px; }
   .side-section { padding: 10px 12px; }
   .notes-body { font-size: 15px; }
   .sc-btn { min-height: 38px; }
+}
+/* Drawing rail on phones/tablets in portrait: a horizontal strip above the clip. */
+@media (orientation: portrait) and (max-width: 900px) {
+  .drawbar.rail { flex-direction: row; width: 100%; padding: 4px 6px; gap: 2px; overflow-x: auto; overflow-y: hidden; justify-content: safe center; }
+  .drawbar.rail .tool-sep { width: 1px; height: 24px; margin: 0 3px; }
+  .drawbar.rail .tool { width: 38px; height: 38px; }
+}
+@media (orientation: portrait) and (max-width: 420px) {
+  .drawbar.rail { flex-wrap: wrap; overflow: visible; gap: 0; padding: 2px 4px; }
+  .drawbar.rail .tool-sep { display: none; }
+  .drawbar.rail .tool { width: 36px; height: 38px; }
+}
+/* Landscape phones: two columns so every tool fits without scrolling. */
+@media (max-height: 500px) {
+  .drawbar.rail { display: grid; grid-template-columns: repeat(2, 34px); gap: 2px; align-content: start; padding: 4px; }
+  .drawbar.rail .tool { width: 34px; height: 34px; }
+  .drawbar.rail .tool-sep { grid-column: 1 / -1; width: 100%; margin: 2px 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

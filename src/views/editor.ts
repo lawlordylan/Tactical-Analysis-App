@@ -4,9 +4,11 @@ import { h, icon, iconBtn } from '../lib/dom';
 import { getVideo } from '../lib/files';
 import { stepFrame, watchFps } from '../lib/media';
 import { addClips, deleteSlide, getSession, getSlides, moveSlide, saveSession, saveSlide } from '../lib/store';
-import type { Session, Slide } from '../lib/types';
+import { Annotator } from '../lib/draw';
+import type { Session, Shortcut, Slide } from '../lib/types';
 import { debounce, fmtBytes, fmtTime, isTyping, uid } from '../lib/util';
 import { CREST, go, runExport, startPresenting } from './actions';
+import { drawBar } from './drawbar';
 
 export async function renderEditor(root: HTMLElement, sessionId: string, initialSlide?: string): Promise<() => void> {
   const loaded = await getSession(sessionId);
@@ -230,9 +232,87 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
     });
 
     const timeLabel = h('span', { class: 'mono' }, fmtTime(0));
-    const onTime = () => (timeLabel.textContent = fmtTime(video.currentTime));
+    const onTime = () => {
+      timeLabel.textContent = fmtTime(video.currentTime);
+      clearIfMoved();
+    };
     video.addEventListener('timeupdate', onTime);
     video.addEventListener('seeked', onTime);
+
+    // ---- drawing ----
+    // A shortcut's drawing shows when you jump to it, and is edited in "draw mode":
+    // the clip is held on the shortcut's frame and the drawing tools replace the
+    // playback row. Every change saves straight to the shortcut.
+    const player = h('div', { class: 'player' }, video, playerMsg);
+    const ann = new Annotator(player, video);
+    let shownAt: number | null = null;
+    let editing: Shortcut | null = null;
+    const drawBtns = new Map<string, HTMLButtonElement>();
+    const drawLabel = h('span', { class: 'draw-label' });
+    const doneBtn = h('button', { class: 'btn primary', type: 'button', onclick: () => exitDraw() }, icon('check'), 'Done');
+    const bar = drawBar(ann, { cls: 'inline' });
+    const drawTools = h('div', { class: 'player-tools draw-tools', hidden: true }, drawLabel, bar.el, h('span', { class: 'spacer' }), doneBtn);
+
+    function showDrawing(shapes: Shortcut['drawing'], at: number | null) {
+      ann.setShapes(shapes);
+      shownAt = shapes?.length ? at : null;
+      bar.refresh();
+    }
+    function clearIfMoved() {
+      if (!editing && shownAt !== null && Math.abs(video.currentTime - shownAt) > 0.5) showDrawing([], null);
+    }
+    video.addEventListener('play', () => {
+      if (!editing) showDrawing([], null);
+    });
+    ann.onStroke = () => video.pause();
+    ann.onChange = (shapes) => {
+      bar.refresh();
+      if (!editing) return;
+      editing.drawing = shapes.length ? shapes : undefined;
+      shownAt = editing.time;
+      save();
+      markDrawBtn(editing);
+    };
+
+    function markDrawBtn(sc: Shortcut) {
+      const b = drawBtns.get(sc.id);
+      if (!b) return;
+      const has = !!sc.drawing?.length;
+      b.classList.toggle('has', has);
+      b.classList.toggle('on', editing === sc);
+      b.title = has ? 'Edit drawing' : 'Draw on this moment';
+      b.setAttribute('aria-label', b.title);
+    }
+
+    function enterDraw(sc: Shortcut) {
+      if (!video.getAttribute('src')) return toast('This slide has no playable clip');
+      const prev = editing;
+      editing = sc;
+      if (prev) markDrawBtn(prev);
+      video.pause();
+      video.controls = false;
+      video.currentTime = sc.time;
+      showDrawing(sc.drawing, sc.time);
+      drawLabel.replaceChildren(h('span', { class: 'chip static' }, fmtTime(sc.time)), h('span', { class: 'draw-label-text' }, sc.title || 'Shortcut'));
+      playerTools.hidden = true;
+      drawTools.hidden = false;
+      player.classList.add('drawing');
+      bar.setTool(ann.tool ?? 'arrow');
+      markDrawBtn(sc);
+      player.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    function exitDraw() {
+      if (!editing) return;
+      const sc = editing;
+      editing = null;
+      bar.setTool(null);
+      video.controls = true;
+      playerTools.hidden = false;
+      drawTools.hidden = true;
+      player.classList.remove('drawing');
+      markDrawBtn(sc);
+    }
 
     // Shortcuts
     const shortcutList = h('ul', { class: 'shortcut-list' });
@@ -253,6 +333,9 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
                 },
               });
               if (sc.id === focusId) queueMicrotask(() => (input.focus(), input.select()));
+              const drawBtn = iconBtn('pen', '', () => (editing === sc ? exitDraw() : enterDraw(sc)), 'btn icon-btn draw-btn');
+              drawBtns.set(sc.id, drawBtn);
+              queueMicrotask(() => markDrawBtn(sc));
               return h(
                 'li',
                 { class: 'shortcut-row' },
@@ -263,19 +346,24 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
                     type: 'button',
                     title: 'Jump to this moment',
                     onclick: () => {
+                      if (editing && editing !== sc) exitDraw();
                       video.pause();
                       video.currentTime = sc.time;
+                      showDrawing(sc.drawing, sc.time);
                     },
                   },
                   fmtTime(sc.time),
                 ),
                 input,
+                drawBtn,
                 iconBtn('target', 'Move to current time', () => {
                   sc.time = video.currentTime;
+                  if (editing === sc) shownAt = sc.time;
                   save();
                   renderShortcuts();
                 }),
                 iconBtn('trash', 'Delete shortcut', () => {
+                  if (editing === sc) exitDraw();
                   slide.shortcuts = slide.shortcuts.filter((x) => x !== sc);
                   save();
                   renderShortcuts();
@@ -289,7 +377,8 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
     renderShortcuts();
 
     const addShortcut = () => {
-      const sc = { id: uid(), title: `Moment ${slide.shortcuts.length + 1}`, time: video.currentTime };
+      if (editing) exitDraw();
+      const sc: Shortcut = { id: uid(), title: `Moment ${slide.shortcuts.length + 1}`, time: video.currentTime };
       video.pause();
       slide.shortcuts.push(sc);
       save();
@@ -319,20 +408,22 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
       },
     });
     const fpsNote = h('span', { class: 'muted small' }, slide.fps ? `${slide.fps} fps` : '');
+    const playerTools = h(
+      'div',
+      { class: 'player-tools' },
+      iconBtn('frameBack', 'Previous frame (,)', () => stepFrame(video, -1, slide.fps)),
+      iconBtn('frameFwd', 'Next frame (.)', () => stepFrame(video, 1, slide.fps)),
+      timeLabel,
+      fpsNote,
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'btn accent', type: 'button', onclick: addShortcut, title: 'Add shortcut at current time (M)' }, icon('flag'), 'Add shortcut'),
+    );
     const idx = slides.indexOf(slide);
 
     detailEl.append(
-      h('div', { class: 'player' }, video, playerMsg),
-      h(
-        'div',
-        { class: 'player-tools' },
-        iconBtn('frameBack', 'Previous frame (,)', () => stepFrame(video, -1, slide.fps)),
-        iconBtn('frameFwd', 'Next frame (.)', () => stepFrame(video, 1, slide.fps)),
-        timeLabel,
-        fpsNote,
-        h('span', { class: 'spacer' }),
-        h('button', { class: 'btn accent', type: 'button', onclick: addShortcut, title: 'Add shortcut at current time (M)' }, icon('flag'), 'Add shortcut'),
-      ),
+      player,
+      playerTools,
+      drawTools,
       h(
         'div',
         { class: 'fields' },
@@ -378,7 +469,17 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
     );
 
     const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (isTyping(e)) return;
+      if (editing) {
+        // In draw mode only drawing keys apply; Esc or Enter finishes.
+        if (bar.handleKey(e)) e.preventDefault();
+        else if (e.key === 'Escape' || e.key === 'Enter') {
+          e.preventDefault();
+          exitDraw();
+        }
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === ',') stepFrame(video, -1, slide.fps);
       else if (e.key === '.') stepFrame(video, 1, slide.fps);
       else if (e.key === 'm' || e.key === 'M') addShortcut();
@@ -391,6 +492,8 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
 
     return () => {
       save.flush();
+      bar.destroy();
+      ann.destroy();
       stopFps();
       document.removeEventListener('keydown', onKey);
       video.pause();

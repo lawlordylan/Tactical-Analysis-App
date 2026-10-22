@@ -8,9 +8,13 @@
 //   │       │ transport: scrub · prev · frame · play… │                     │
 //   └───────┴─────────────────────────────────────────┴─────────────────────┘
 //
-// On phones in portrait the side panel drops below the transport.
-// The tool rail is empty for now and reserved for Phase 2 drawing tools; the
-// stage is position:relative so a drawing canvas can be layered over the video.
+// On phones in portrait the tool rail sits above the clip and the side panel
+// drops below the transport.
+//
+// Drawing: the tool rail draws on a canvas layered over the clip. A drawing
+// belongs to a moment in the clip: jumping to a shortcut shows its saved
+// drawing, and playing or seeking away clears the screen (frame steps keep it).
+// Drawings made while presenting are not saved; prepare them in the editor.
 //
 // Works with touch, mouse, keyboard and presentation clickers (PageUp/PageDown).
 import { h, icon, iconBtn } from '../lib/dom';
@@ -19,7 +23,9 @@ import { stepFrame, watchFps } from '../lib/media';
 import { getSession, getSlides, saveSlide } from '../lib/store';
 import type { Slide } from '../lib/types';
 import { fmtTime, isTyping } from '../lib/util';
+import { Annotator } from '../lib/draw';
 import { CREST, go } from './actions';
+import { drawBar } from './drawbar';
 
 const SPEEDS = [1, 0.5, 0.25];
 let rememberedSpeed = 1;
@@ -52,8 +58,26 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
   const notesSection = h('section', { class: 'side-section' }, h('h2', null, 'Comments'), notesBody);
   const side = h('aside', { class: 'present-side' }, shortcutSection, notesSection);
 
-  // Reserved for Phase 2 (drawing tools). Hidden while empty.
-  const toolRail = h('div', { class: 'tool-rail', 'aria-label': 'Tools' });
+  // ---------- drawing ----------
+  const ann = new Annotator(stage, video);
+  /** Clip time the current drawing belongs to; null when nothing is drawn. */
+  let shownAt: number | null = null;
+  const bar = drawBar(ann, { cls: 'rail' });
+  const toolRail = h('div', { class: 'tool-rail', 'aria-label': 'Drawing tools' }, bar.el);
+  ann.onStroke = () => {
+    video.pause();
+    shownAt = video.currentTime;
+  };
+  ann.onChange = () => bar.refresh();
+  function showDrawing(shapes: Slide['shortcuts'][number]['drawing'], at: number | null) {
+    ann.setShapes(shapes);
+    shownAt = shapes?.length ? at : null;
+    bar.refresh();
+  }
+  /** Clear the drawing once the clip has moved away from its moment. */
+  function clearIfMoved() {
+    if (shownAt !== null && Math.abs(video.currentTime - shownAt) > 0.5) showDrawing([], null);
+  }
 
   const scrub = h('input', { class: 'scrub', type: 'range', min: '0', max: '1', step: 'any', value: '0', 'aria-label': 'Seek' });
   const tNow = h('span', { class: 'mono small' }, '0:00.0');
@@ -97,6 +121,9 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
         ['1 – 9', 'Jump to shortcut'],
         ['S', 'Change speed'],
         ['N', 'Show / hide panel'],
+        ['A  L  C  P', 'Arrow, line, ring, freehand'],
+        ['D', 'Dashed / solid line'],
+        ['Z  ·  X', 'Undo  ·  clear drawing'],
         ['F', 'Fullscreen'],
         ['Esc', 'Exit'],
       ].flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]),
@@ -114,7 +141,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
       title,
       h('span', { class: 'spacer' }),
       panelBtn,
-      iconBtn('help', 'Keyboard shortcuts (?)', () => (helpPanel.hidden = !helpPanel.hidden), 'ctl'),
+      iconBtn('help', 'Keyboard shortcuts (?)', () => (helpPanel.hidden = !helpPanel.hidden), 'ctl help-btn'),
       fsBtn,
       iconBtn('close', 'Exit (Esc)', () => exit(), 'ctl'),
     ),
@@ -138,6 +165,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
     prevBtn.disabled = i === 0;
     nextBtn.disabled = i === slides.length - 1;
     renderShortcuts(slide);
+    showDrawing([], null);
     history.replaceState(null, '', `#/present/${sessionId}/${i}`);
 
     if (url) URL.revokeObjectURL(url);
@@ -200,6 +228,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
     if (!sc) return;
     video.pause();
     video.currentTime = sc.time;
+    showDrawing(sc.drawing, sc.time);
   }
 
   function highlightShortcut() {
@@ -241,6 +270,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
     tNow.textContent = fmtTime(video.currentTime);
     tDur.textContent = fmtTime(d, false);
     highlightShortcut();
+    clearIfMoved();
   }
   scrub.addEventListener('pointerdown', () => (scrubbing = true));
   scrub.addEventListener('pointerup', () => (scrubbing = false));
@@ -251,6 +281,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
 
   const setPlayIcon = () => {
     playBtn.replaceChildren(icon(video.paused ? 'play' : 'pause'));
+    if (!video.paused) showDrawing([], null);
     view.classList.toggle('playing', !video.paused);
   };
   video.addEventListener('play', setPlayIcon);
@@ -304,13 +335,20 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
   }
 
   // Click or tap the clip to play / pause. Nothing sits on top of it any more.
-  stage.addEventListener('click', () => togglePlay());
+  stage.addEventListener('click', () => {
+    if (!ann.tool) togglePlay();
+  });
   stage.addEventListener('dblclick', (e) => {
     if ((e as MouseEvent).detail === 2) toggleFullscreen();
   });
 
   const onKey = (e: KeyboardEvent) => {
-    if (isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (isTyping(e)) return;
+    if (helpPanel.hidden && bar.handleKey(e)) {
+      e.preventDefault();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key;
     if (k === ' ' || k === 'k' || k === 'K') togglePlay();
     else if (k === 'ArrowRight') e.shiftKey ? (video.currentTime = Math.min(video.duration || 0, video.currentTime + 2)) : stepFrame(video, 1, slides[index].fps);
@@ -338,6 +376,8 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
 
   return () => {
     loadToken++;
+    bar.destroy();
+    ann.destroy();
     stopFps();
     cancelAnimationFrame(raf);
     document.removeEventListener('keydown', onKey);

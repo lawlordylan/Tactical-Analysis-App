@@ -11,7 +11,12 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs?: Attrs |
       if (v === undefined || v === null || v === false) continue;
       if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v as EventListener);
       else if (k === 'class') el.className = String(v);
-      else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+      else if (k === 'style' && typeof v === 'object') {
+        for (const [sk, sv] of Object.entries(v as Record<string, string>)) {
+          if (sk.startsWith('--')) el.style.setProperty(sk, sv);
+          else (el.style as unknown as Record<string, string>)[sk] = sv;
+        }
+      }
       else if (PROPS.has(k)) (el as unknown as Record<string, unknown>)[k] = v;
       else el.setAttribute(k, v === true ? '' : String(v));
     }
@@ -51,6 +56,17 @@ const ICONS: Record<string, string> = {
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6"/><circle cx="12" cy="17.2" r=".6" fill="currentColor"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
+  pen: '<path d="M4 20l1.2-4.4L16.6 4.2a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.3l3.2 3.2"/>',
+  line: '<path d="M5 19L19 5"/><circle cx="5" cy="19" r="1.6" fill="currentColor"/><circle cx="19" cy="5" r="1.6" fill="currentColor"/>',
+  arrow: '<path d="M5 19L18 6"/><path d="M10 5.5h8.5V14" />',
+  circle: '<ellipse cx="12" cy="13" rx="8.5" ry="5.5"/><path d="M12 4v4" stroke-dasharray="1.5 2"/>',
+  dashed: '<path d="M4 20l2.5-2.5M9 15l2.5-2.5M14 10l2.5-2.5M19 5l1-1"/>',
+  solid: '<path d="M4 20L20 4"/>',
+  thin: '<path d="M4 12h16" stroke-width="1.6"/>',
+  thick: '<path d="M4 12h16" stroke-width="4.5"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  eraser: '<path d="M8.5 20H20"/><path d="M5.6 16.4l9.9-9.9a2 2 0 0 1 2.8 0l1.2 1.2a2 2 0 0 1 0 2.8L12 18H7.2z"/><path d="M10 11.5l4.5 4.5"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/>',
 };
 

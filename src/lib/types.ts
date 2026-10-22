@@ -1,8 +1,30 @@
+export type DrawTool = 'pen' | 'line' | 'arrow' | 'circle';
+
+/**
+ * One drawn shape. Coordinates are normalised to the video picture (0..1),
+ * flattened into `p`:
+ *   pen    [x0, y0, x1, y1, ...]
+ *   line   [x1, y1, x2, y2]      arrow: same, head at (x2, y2)
+ *   circle [cx, cy, rx, ry]      an ellipse; rx/ry as fractions of width/height
+ */
+export interface DrawShape {
+  t: DrawTool;
+  /** Colour, #rrggbb. */
+  c: string;
+  /** Line weight: 1 normal, 2 thick. */
+  w: 1 | 2;
+  /** Dashed line (e.g. a player's run). */
+  d?: boolean;
+  p: number[];
+}
+
 export interface Shortcut {
   id: string;
   title: string;
   /** Seconds from the start of the clip. */
   time: number;
+  /** Drawing shown when presenting this shortcut. */
+  drawing?: DrawShape[];
 }
 
 export interface VideoRef {
@@ -48,7 +70,7 @@ export interface SessionManifest {
   slides: {
     title: string;
     notes: string;
-    shortcuts: { title: string; time: number }[];
+    shortcuts: { title: string; time: number; drawing?: DrawShape[] }[];
     duration?: number;
     fps?: number;
     thumb?: string;
