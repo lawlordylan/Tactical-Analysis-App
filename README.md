@@ -11,7 +11,8 @@ Everything is stored on the device. Nothing is uploaded anywhere. To move a sess
 Working now:
 
 - Create, rename and delete sessions
-- Add clips (button or drag & drop), set title and comments, reorder and delete slides
+- Add clips (button or drag & drop), set title and comments, delete slides
+- **Drag to reorder clips**: with a mouse, drag a clip anywhere; on touch, drag its handle or press and hold the clip. The list scrolls when you drag near its edge
 - Add shortcuts at the current playhead, rename them, move them, delete them
 - Present mode: the clip has its own uncovered area, with the title bar above it, playback controls below it, and shortcuts and comments in a side panel (below the clip on portrait phones). Previous/next clip, 1× / 0.5× / 0.25× speed, frame-by-frame stepping, optional fullscreen. A drawing tool rail sits beside the clip (above it on portrait phones)
 - **Auto-ring**: tap a player and a ring snaps to them (on-device player detection, works offline after first use)
@@ -24,7 +25,7 @@ Target browsers for the POC: Chrome/Edge on desktop and Chrome on Android. iPhon
 ### Roadmap
 
 - **Phase 2 (done):** drawing on the video, saved per shortcut
-- **Phase 3:** drag-to-reorder, casting (Chromecast / AirPlay), storage usage per session, polish
+- **Phase 3:** casting (Chromecast / AirPlay), storage usage per session, polish
 
 ## Using it
 
@@ -45,17 +46,17 @@ Target browsers for the POC: Chrome/Edge on desktop and Chrome on Android. iPhon
 | Dashed / solid | D |
 | Undo · clear drawing | Z (or Ctrl+Z) · X |
 
-In the editor: `,` and `.` step frames, `M` adds a shortcut at the current time.
+In the editor: `,` and `.` step frames, `M` adds a shortcut at the current time, `D` draws on the current frame.
 
 Click or tap the clip to play / pause. With a drawing tool selected, the clip is a canvas instead; drawing pauses it.
 
 ### Drawings
 
-- **Prepare** them in the editor: tap the pen button on a shortcut. The clip holds on that frame and the drawing tools replace the playback row. Everything you draw saves to that shortcut. Tap **Done** (or Esc) when finished.
+- **Prepare** them in the editor: pause on a moment and tap **Draw on this frame** (or press D). That adds a shortcut there if there isn't one, and opens the drawing tools. Each shortcut also has a **Draw** button. The clip holds on that frame and the drawing tools replace the playback row. Everything you draw saves to that shortcut. Tap **Done** (or Esc) when finished.
 - **Present**: jumping to a shortcut (tap it or press its number) shows its drawing. Frame stepping keeps it on screen; playing or seeking away clears it, so the next freeze-frame starts clean.
 - You can also draw live while presenting. Live drawings are not saved, so the prepared session stays as you made it.
 - A tap with the ring tool drops a standard-size ring; drag to size it.
-- **Auto-ring** (the first tool): tap a player and the app finds them and draws the ring for you: a ring at the feet for players in a wide shot, an oval around the whole player in a close-up. If nobody is found where you tapped, you get a normal ring there instead. Dragging with this tool still sizes a ring by hand. Rings it draws are ordinary rings: undo, colour, dashed and saving all work the same.
+- **Auto-ring** (the first tool): tap a player and the app finds them and draws the ring for you: a ring at the feet for players in a wide shot, an oval around the whole player in a close-up. If nobody is found where you tapped, you get a normal ring there instead. Dragging with this tool still sizes a ring by hand. Its rings get a soft glow in the ring's colour and pop in when they appear (and when you jump to the shortcut while presenting). Otherwise they're ordinary rings: undo, colour, dashed and saving all work the same.
 - Drawings are stored relative to the video picture, so they line up with the same players on any screen, in any orientation, and after export / import.
 
 **Clip format:** H.264 MP4 plays everywhere. iPhone recordings (HEVC/.mov) may not play in Chrome on Windows; re-export them as H.264 MP4.
@@ -105,6 +106,7 @@ src/
     media.ts         thumbnails, duration, frame-rate detection, frame stepping
     draw.ts          drawing layer: canvas over the video, shapes, undo
     detect.ts        auto-ring: find the player under a tap
+    sortable.ts      drag-to-reorder (pointer events: mouse, touch, pen)
     dom.ts, dialogs.ts, util.ts
   sw.js              service worker (offline cache), filled in at build time
 scripts/build.mjs    esbuild bundle + index.html + service worker precache list

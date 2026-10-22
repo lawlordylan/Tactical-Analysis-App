@@ -5,6 +5,7 @@ import { getVideo } from '../lib/files';
 import { stepFrame, watchFps } from '../lib/media';
 import { addClips, deleteSlide, getSession, getSlides, moveSlide, saveSession, saveSlide } from '../lib/store';
 import { Annotator } from '../lib/draw';
+import { sortable } from '../lib/sortable';
 import type { Session, Shortcut, Slide } from '../lib/types';
 import { debounce, fmtBytes, fmtTime, isTyping, uid } from '../lib/util';
 import { CREST, go, runExport, startPresenting } from './actions';
@@ -40,7 +41,24 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
     },
   });
 
-  const listEl = h('ol', { class: 'slide-list' });
+  const listEl = h('ol', { class: 'slide-list', 'aria-label': 'Clips. Drag to reorder.' });
+  /** Updates the selected slide's move up/down buttons after the order changes. */
+  let refreshMoveBtns: () => void = () => {};
+  const stopSortable = sortable(listEl, {
+    item: 'li',
+    handle: '.drag-handle',
+    onMove: async (from, to) => {
+      const ids = [...session.slideIds];
+      const [moved] = ids.splice(from, 1);
+      ids.splice(to, 0, moved);
+      session.slideIds = ids;
+      const [ms] = slides.splice(from, 1);
+      slides.splice(to, 0, ms);
+      renderList();
+      refreshMoveBtns();
+      await saveSession(session);
+    },
+  });
   const detailEl = h('section', { class: 'slide-detail' });
   const selectedIndex = () => Math.max(0, slides.findIndex((s) => s.id === selectedId));
 
@@ -132,7 +150,7 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
       ...slides.map((s, i) =>
         h(
           'li',
-          null,
+          { 'data-id': s.id },
           h(
             'button',
             {
@@ -154,6 +172,7 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
               h('span', { class: 'slide-title' }, s.title || 'Untitled clip'),
               h('span', { class: 'muted small' }, [s.duration ? fmtTime(s.duration, false) : null, s.shortcuts.length ? `${s.shortcuts.length} ⚑` : null].filter(Boolean).join(' · ')),
             ),
+            h('span', { class: 'drag-handle', title: 'Drag to reorder', 'aria-hidden': 'true' }, icon('grip')),
           ),
         ),
       ),
@@ -162,7 +181,7 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
   }
 
   function updateListItem(slide: Slide) {
-    const item = listEl.querySelector(`[data-id="${slide.id}"]`);
+    const item = listEl.querySelector(`.slide-item[data-id="${slide.id}"]`);
     if (!item) return;
     item.querySelector('.slide-title')!.textContent = slide.title || 'Untitled clip';
     item.querySelector('.slide-text .muted')!.textContent = [slide.duration ? fmtTime(slide.duration, false) : null, slide.shortcuts.length ? `${slide.shortcuts.length} ⚑` : null]
@@ -280,8 +299,10 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
       const has = !!sc.drawing?.length;
       b.classList.toggle('has', has);
       b.classList.toggle('on', editing === sc);
-      b.title = has ? 'Edit drawing' : 'Draw on this moment';
+      b.title = editing === sc ? 'Finish drawing' : has ? 'Edit drawing' : 'Add a drawing to this shortcut';
       b.setAttribute('aria-label', b.title);
+      const label = b.querySelector('.draw-btn-label');
+      if (label) label.textContent = editing === sc ? 'Drawing…' : has ? `Drawing · ${sc.drawing!.length}` : 'Draw';
     }
 
     function enterDraw(sc: Shortcut) {
@@ -333,7 +354,7 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
                 },
               });
               if (sc.id === focusId) queueMicrotask(() => (input.focus(), input.select()));
-              const drawBtn = iconBtn('pen', '', () => (editing === sc ? exitDraw() : enterDraw(sc)), 'btn icon-btn draw-btn');
+              const drawBtn = h('button', { class: 'btn draw-btn', type: 'button', onclick: () => (editing === sc ? exitDraw() : enterDraw(sc)) }, icon('pen'), h('span', { class: 'draw-btn-label' }));
               drawBtns.set(sc.id, drawBtn);
               queueMicrotask(() => markDrawBtn(sc));
               return h(
@@ -371,7 +392,7 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
                 }),
               );
             })
-          : [h('li', { class: 'muted small empty-shortcuts' }, 'No shortcuts yet. Pause on a key moment and tap “Add shortcut”.')]),
+          : [h('li', { class: 'muted small empty-shortcuts' }, 'No shortcuts yet. Pause on a key moment, then tap “Add shortcut”, or “Draw on this frame” to mark it with arrows and rings.')]),
       );
     };
     renderShortcuts();
@@ -416,9 +437,38 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
       timeLabel,
       fpsNote,
       h('span', { class: 'spacer' }),
-      h('button', { class: 'btn accent', type: 'button', onclick: addShortcut, title: 'Add shortcut at current time (M)' }, icon('flag'), 'Add shortcut'),
+      h('button', { class: 'btn', type: 'button', onclick: () => drawHere(), title: 'Draw on this frame (D). Saved as a shortcut.' }, icon('pen'), h('span', { class: 'label' }, 'Draw on this frame')),
+      h('button', { class: 'btn accent', type: 'button', onclick: addShortcut, title: 'Add shortcut at current time (M)' }, icon('flag'), h('span', { class: 'label' }, 'Add shortcut')),
     );
-    const idx = slides.indexOf(slide);
+
+    /** Draw on the current frame: reuses a shortcut already at this moment, or adds one. */
+    function drawHere() {
+      if (!video.getAttribute('src')) return toast('This slide has no playable clip');
+      const t = video.currentTime;
+      let sc = slide.shortcuts.find((x) => Math.abs(x.time - t) < 0.06);
+      if (!sc) {
+        sc = { id: uid(), title: `Moment ${slide.shortcuts.length + 1}`, time: t };
+        slide.shortcuts.push(sc);
+        save();
+        renderShortcuts();
+        updateListItem(slide);
+      }
+      enterDraw(sc);
+    }
+    const move = async (delta: number) => {
+      await moveSlide(session, slide.id, delta);
+      slides = await getSlides(session);
+      renderList();
+      refreshMoveBtns();
+    };
+    const upBtn = iconBtn('up', 'Move clip earlier', () => move(-1));
+    const downBtn = iconBtn('down', 'Move clip later', () => move(1));
+    refreshMoveBtns = () => {
+      const i = slides.indexOf(slide);
+      upBtn.disabled = i <= 0;
+      downBtn.disabled = i < 0 || i >= slides.length - 1;
+    };
+    refreshMoveBtns();
 
     detailEl.append(
       player,
@@ -434,16 +484,8 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
       h(
         'div',
         { class: 'slide-actions' },
-        iconBtn('up', 'Move slide up', async () => {
-          await moveSlide(session, slide.id, -1);
-          slides = await getSlides(session);
-          renderList();
-        }, 'btn icon-btn' + (idx === 0 ? ' dim' : '')),
-        iconBtn('down', 'Move slide down', async () => {
-          await moveSlide(session, slide.id, 1);
-          slides = await getSlides(session);
-          renderList();
-        }, 'btn icon-btn' + (idx === slides.length - 1 ? ' dim' : '')),
+        upBtn,
+        downBtn,
         h('button', { class: 'btn', type: 'button', onclick: () => startPresenting(session.id, selectedIndex()) }, icon('present'), 'Present from here'),
         h('span', { class: 'spacer' }),
         h(
@@ -483,6 +525,7 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
       if (e.key === ',') stepFrame(video, -1, slide.fps);
       else if (e.key === '.') stepFrame(video, 1, slide.fps);
       else if (e.key === 'm' || e.key === 'M') addShortcut();
+      else if (e.key === 'd' || e.key === 'D') drawHere();
       else if (e.key === ' ' && document.activeElement !== video) {
         e.preventDefault();
         video.paused ? video.play() : video.pause();
@@ -512,5 +555,6 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
     root.removeEventListener('dragover', onDragOver);
     root.removeEventListener('dragleave', onDragLeave);
     root.removeEventListener('drop', onDrop);
+    stopSortable();
   };
 }

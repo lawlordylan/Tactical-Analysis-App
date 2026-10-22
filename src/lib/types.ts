@@ -15,6 +15,8 @@ export interface DrawShape {
   w: 1 | 2;
   /** Dashed line (e.g. a player's run). */
   d?: boolean;
+  /** Glowing highlight ring (made by auto-ring). */
+  g?: boolean;
   p: number[];
 }
 

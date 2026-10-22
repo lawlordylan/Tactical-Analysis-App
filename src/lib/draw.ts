@@ -52,12 +52,19 @@ function rgba(hex: string, a: number) {
 }
 
 /** Draws shapes onto a 2D context whose picture area is `r` (in context pixels). */
-export function paint(ctx: CanvasRenderingContext2D, shapes: DrawShape[], r: Rect) {
-  for (const s of shapes) {
+/** Per-shape animation: scale (rings) and opacity. */
+export type ShapeFx = (index: number) => { scale: number; alpha: number } | null;
+
+export function paint(ctx: CanvasRenderingContext2D, shapes: DrawShape[], r: Rect, fx?: ShapeFx) {
+  for (let si = 0; si < shapes.length; si++) {
+    const s = shapes[si];
+    const anim = fx?.(si);
+    if (anim && anim.alpha <= 0) continue;
     const lw = Math.max(2, r.h * (s.w === 2 ? 0.011 : 0.0065));
     const X = (i: number) => r.x + s.p[i] * r.w;
     const Y = (i: number) => r.y + s.p[i + 1] * r.h;
     ctx.save();
+    if (anim) ctx.globalAlpha = anim.alpha;
     ctx.lineWidth = lw;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -104,17 +111,56 @@ export function paint(ctx: CanvasRenderingContext2D, shapes: DrawShape[], r: Rec
         ctx.stroke();
       }
     } else if (s.t === 'circle') {
+      const k = anim?.scale ?? 1;
       const cx = X(0), cy = Y(0);
-      const rx = Math.max(1, Math.abs(s.p[2] * r.w));
-      const ry = Math.max(1, Math.abs(s.p[3] * r.h));
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-      ctx.save();
-      ctx.shadowColor = 'transparent';
-      ctx.fillStyle = rgba(s.c, 0.16);
-      ctx.fill();
-      ctx.restore();
-      ctx.stroke();
+      const rx = Math.max(1, Math.abs(s.p[2] * r.w)) * k;
+      const ry = Math.max(1, Math.abs(s.p[3] * r.h)) * k;
+      const ring = (f: number) => {
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx * f, ry * f, 0, 0, Math.PI * 2);
+      };
+      if (s.g) {
+        // Glowing highlight: a soft spotlight inside, a halo in the ring's own
+        // colour, a crisp core, and a faint outer ring.
+        ctx.save();
+        ctx.shadowColor = 'transparent';
+        ctx.translate(cx, cy);
+        ctx.scale(1, ry / rx);
+        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+        grad.addColorStop(0, rgba(s.c, 0.32));
+        grad.addColorStop(0.7, rgba(s.c, 0.12));
+        grad.addColorStop(1, rgba(s.c, 0));
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.save();
+        ctx.shadowColor = rgba(s.c, 0.95);
+        ctx.shadowBlur = lw * 5;
+        ring(1);
+        ctx.stroke();
+        ctx.lineWidth = lw * 0.55;
+        ctx.strokeStyle = rgba(s.c, 0.45);
+        ctx.shadowBlur = lw * 3;
+        ring(1.28);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.shadowColor = 'rgba(0, 0, 0, .35)';
+        ctx.shadowBlur = lw;
+        ring(1);
+        ctx.stroke();
+      } else {
+        ring(1);
+        ctx.save();
+        ctx.shadowColor = 'transparent';
+        ctx.fillStyle = rgba(s.c, 0.16);
+        ctx.fill();
+        ctx.restore();
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }
@@ -135,7 +181,7 @@ export function sanitizeShapes(input: unknown): DrawShape[] {
         (s as DrawShape).p.length >= 2 &&
         (s as DrawShape).p.every((n) => typeof n === 'number' && isFinite(n)),
     )
-    .map((s) => ({ t: s.t, c: s.c, w: s.w === 2 ? 2 : 1, ...(s.d ? { d: true } : {}), p: s.p }));
+    .map((s) => ({ t: s.t, c: s.c, w: s.w === 2 ? 2 : 1, ...(s.d ? { d: true } : {}), ...(s.g && s.t === 'circle' ? { g: true } : {}), p: s.p }));
 }
 
 export class Annotator {
@@ -154,6 +200,9 @@ export class Annotator {
   /** Called when auto-ring couldn't find a player (or failed) and a plain ring was placed instead. */
   onAutoMiss?: (reason: 'none' | 'error', err?: unknown) => void;
   private pending: { x: number; y: number; raf: number } | null = null;
+  /** Rings animating in: shape index -> start time. */
+  private pops = new Map<number, number>();
+  private popRaf = 0;
   /** Bumped whenever the shown drawing is replaced, so a slow auto-ring can't land on the wrong one. */
   private gen = 0;
   style: DrawStyle = { color: COLORS[0].value, thick: false, dashed: false };
@@ -212,7 +261,7 @@ export class Annotator {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const list = this.draft ? [...this.shapes, this.draft] : this.shapes;
     const r = this.rect();
-    if (list.length) paint(ctx, list, r);
+    if (list.length) paint(ctx, list, r, this.pops.size ? (i) => this.popFx(i) : undefined);
     if (this.pending) {
       // "Looking…" indicator: a spinning dashed ring at the tap.
       const rad = Math.max(10, r.h * 0.03);
@@ -228,6 +277,31 @@ export class Annotator {
       ctx.stroke();
       ctx.restore();
     }
+  }
+
+  /** Glow rings pop in: a quick overshoot from larger and transparent. */
+  private popIn(indices: number[]) {
+    const now = performance.now();
+    for (const i of indices) this.pops.set(i, now);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return this.pops.clear();
+    cancelAnimationFrame(this.popRaf);
+    const tick = () => {
+      this.render();
+      if (this.pops.size) this.popRaf = requestAnimationFrame(tick);
+    };
+    this.popRaf = requestAnimationFrame(tick);
+  }
+
+  private popFx(i: number) {
+    const start = this.pops.get(i);
+    if (start === undefined) return null;
+    const t = Math.min(1, (performance.now() - start) / 320);
+    if (t >= 1) {
+      this.pops.delete(i);
+      return null;
+    }
+    const e = 1 - Math.pow(1 - t, 3);
+    return { scale: 1 + 0.45 * (1 - e), alpha: Math.min(1, t * 2.2) };
   }
 
   get busy() {
@@ -254,7 +328,8 @@ export class Annotator {
     if (this.pending) cancelAnimationFrame(this.pending.raf);
     this.pending = null;
     const p = ring ? ring.map(round) : [x, y, 0.035, 0.02];
-    this.commit([...this.shapes, { t: 'circle', ...base, p }]);
+    this.commit([...this.shapes, { t: 'circle', ...base, ...(ring ? { g: true } : {}), p }]);
+    if (ring) this.popIn([this.shapes.length - 1]);
     if (!ring) this.onAutoMiss?.(failed ? 'error' : 'none', failed);
   }
 
@@ -270,6 +345,9 @@ export class Annotator {
     this.pending = null;
     this.shapes = (shapes ?? []).map((s) => ({ ...s, p: [...s.p] }));
     this.history = [];
+    this.pops.clear();
+    const glows = this.shapes.flatMap((s, i) => (s.g ? [i] : []));
+    if (glows.length) this.popIn(glows);
     this.render();
   }
 
@@ -292,6 +370,7 @@ export class Annotator {
   undo() {
     const prev = this.history.pop();
     if (!prev) return;
+    this.pops.clear();
     this.shapes = prev;
     this.render();
     this.onChange?.(this.getShapes());
@@ -385,6 +464,8 @@ export class Annotator {
   };
 
   destroy() {
+    cancelAnimationFrame(this.popRaf);
+    this.pops.clear();
     if (this.pending) cancelAnimationFrame(this.pending.raf);
     this.pending = null;
     this.ro.disconnect();
