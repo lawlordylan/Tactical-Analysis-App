@@ -9,7 +9,8 @@ export default defineConfig({
   fullyParallel: true,
   // Auto-ring tests are CPU heavy; a few workers is plenty.
   workers: process.env.CI ? 2 : 3,
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'test-results/report' }]],
+  // On GitHub, failures also show as annotations on the run.
+  reporter: [['list'], ['html', { open: 'never', outputFolder: 'test-results/report' }], ...(process.env.CI ? [['github'] as ['github']] : [])],
   outputDir: 'test-results/artifacts',
   use: {
     baseURL: 'http://localhost:4173',
