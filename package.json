@@ -8,11 +8,14 @@
     "dev": "node scripts/build.mjs --serve",
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "esbuild tests/zip.test.ts --bundle --platform=node --format=esm --outfile=dist-test/zip.test.mjs --log-level=warning && node dist-test/zip.test.mjs"
+    "test": "esbuild tests/zip.test.ts --bundle --platform=node --format=esm --outfile=dist-test/zip.test.mjs --log-level=warning && node dist-test/zip.test.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "devDependencies": {
     "esbuild": "^0.28.0",
-    "typescript": "^6.0.0"
+    "typescript": "^6.0.0",
+    "@playwright/test": "^1.56.0"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "1.1.1"

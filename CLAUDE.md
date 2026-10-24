@@ -19,6 +19,7 @@ npm run dev        # http://localhost:5173, rebuilds on save (open on a phone vi
 npm run build      # production build into dist/
 npm run typecheck
 npm test           # ZIP export-format round-trip tests
+npm run test:e2e   # Playwright browser tests (first time: npx playwright install chromium)
 ```
 
 ## Stack and conventions
@@ -35,6 +36,9 @@ npm test           # ZIP export-format round-trip tests
 
 ## Checking work
 
+- Run `npm run typecheck`, `npm test` and `npm run test:e2e` before merging to `main`. The e2e suite (`tests/e2e/`, see README) covers every feature, layout at 12 screen sizes, touch reordering, offline use and auto-ring accuracy on hand-marked match photos. Add or update a spec when you add or change behaviour.
+- If an auto-ring accuracy test fails after changing `src/lib/detect.ts`, treat it as a regression; only adjust thresholds in `tests/e2e/auto-ring.spec.ts` with a clear reason.
+- Tests open the app at `/?nosw` to bypass the service worker; only `offline.spec.ts` runs with the service worker.
 - Test UI changes in a real browser at phone sizes (portrait and landscape) as well as desktop; present mode has had overflow bugs on small landscape phones before.
 - Present mode must never overlay the clip: title bar above, transport below, side panel beside (below on portrait phones).
 - Commits end with the Co-Authored-By line for Claude.

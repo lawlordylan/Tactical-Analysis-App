@@ -65,7 +65,7 @@ Click or tap the clip to play / pause. With a drawing tool selected, the clip is
 
 ## Development
 
-No runtime dependencies. The only dev tools are esbuild and TypeScript.
+One runtime dependency (`@mediapipe/tasks-vision`, for auto-ring, loaded on first use). Dev tools: esbuild, TypeScript and Playwright.
 
 ```bash
 npm install
@@ -73,7 +73,25 @@ npm run dev        # http://localhost:5173 with rebuild on save
 npm run build      # production build into dist/
 npm run typecheck
 npm test           # export-format round-trip tests
+npm run test:e2e   # browser tests (first time: npx playwright install chromium)
 ```
+
+Work happens on the `develop` branch; `main` is what's live.
+
+### Browser tests
+
+`npm run test:e2e` builds the app, serves it on port 4173 and runs `tests/e2e/` in Chromium (about 2 minutes). `npm run test:e2e:ui` opens Playwright's interactive runner. Screenshots, traces and an HTML report land in `test-results/`.
+
+| Spec | What it checks |
+| --- | --- |
+| `core` | Sessions, clips, titles, comments, shortcuts, frame stepping, saving across reload; present mode (shortcut keys, slow motion, side panel, next clip, nothing covering the clip); export to `.analysis` (every CRC verified) and import on a second "device", duplicate names, deleting removes stored clips |
+| `layout` | Present mode at 12 screen sizes, phones to laptop, portrait and landscape: no control outside its bar, nothing off screen, nothing over the clip. Saves a screenshot per size |
+| `drawing` | Drawing in the editor, saved per shortcut, shown on jump, frame step keeps it, play clears it, live drawing while presenting, drawings in exports |
+| `reorder` | Drag to reorder with a mouse, and with real touch events on a phone (handle, swipe-scrolls, press-and-hold with auto-scroll) |
+| `auto-ring` | Auto-ring behaviour, plus **accuracy on 38 hand-marked players** in five real match photos: the right player is ringed and floor rings land near the feet. Fails if detection tuning regresses |
+| `offline` | With the service worker: the app and auto-ring (detector and pose model) keep working offline after first use |
+
+Test clips are in `tests/e2e/fixtures/` (see its `CREDITS.md`). The same suite runs on GitHub for every push to `develop` and every pull request to `main` (`.github/workflows/tests.yml`).
 
 To try it on a phone during development, open `http://<your-computer-ip>:5173` on the same Wi-Fi. Over plain http the browser blocks some storage APIs, so videos are stored in IndexedDB instead of the private file system. Everything still works; the deployed https version is the real thing.
 
@@ -111,6 +129,8 @@ src/
   sw.js              service worker (offline cache), filled in at build time
 scripts/build.mjs    esbuild bundle + index.html + service worker precache list
 tests/zip.test.ts    ZIP round-trip tests
+tests/e2e/           browser tests (Playwright) and test clips
+scripts/serve.mjs    static server for dist/ (used by the browser tests)
 ```
 
 ### Branding
