@@ -9,6 +9,7 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "noUnusedLocals": true,
+    "allowUnreachableCode": false,
     "types": []
   },
   "include": ["src"]
