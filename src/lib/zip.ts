@@ -173,6 +173,8 @@ export function zipStream(
 export interface ZipEntry {
   name: string;
   size: number;
+  /** CRC-32 recorded in the archive for this entry. */
+  crc: number;
   /** Lazily reads the (decompressed) entry contents. */
   blob(): Promise<Blob>;
   text(): Promise<string>;
@@ -223,6 +225,7 @@ export async function readZip(file: Blob): Promise<Map<string, ZipEntry>> {
   for (let i = 0; i < count; i++) {
     if (cd.getUint32(p, true) !== 0x02014b50) throw bad();
     const method = cd.getUint16(p + 10, true);
+    const crc = cd.getUint32(p + 16, true);
     let compSize = cd.getUint32(p + 20, true);
     let size = cd.getUint32(p + 24, true);
     const nameLen = cd.getUint16(p + 28, true);
@@ -260,7 +263,7 @@ export async function readZip(file: Blob): Promise<Map<string, ZipEntry>> {
       if (method === 8) return new Response(raw.stream().pipeThrough(new DecompressionStream('deflate-raw'))).blob();
       throw new Error(`Unsupported compression in "${name}".`);
     };
-    out.set(name, { name, size, blob, text: async () => (await blob()).text() });
+    out.set(name, { name, size, crc, blob, text: async () => (await blob()).text() });
   }
   return out;
 }

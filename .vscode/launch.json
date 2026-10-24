@@ -1,0 +1,45 @@
+{
+  // Press F5 (Run and Debug) to start the dev server and open the app in a
+  // browser that VS Code is attached to: breakpoints in src/*.ts work, and
+  // console output shows in the Debug Console.
+  // The browser keeps its own profile between runs, so saved sessions and
+  // videos are still there next time.
+  // For phone layouts, press Ctrl+Shift+M in the browser's DevTools.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "App in Chrome",
+      "type": "chrome",
+      "request": "launch",
+      // ?nosw skips the service worker so every reload gets the latest build.
+      "url": "http://localhost:5173/?nosw",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "Dev server"
+    },
+    {
+      "name": "App in Edge",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:5173/?nosw",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "Dev server"
+    },
+    {
+      "name": "Production build in Chrome (with service worker)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:4174/",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "Preview production build"
+    },
+    {
+      "name": "Unit tests (debug)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["test"],
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    }
+  ]
+}

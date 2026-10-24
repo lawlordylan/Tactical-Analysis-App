@@ -10,11 +10,12 @@ Everything is stored on the device. Nothing is uploaded anywhere. To move a sess
 
 Working now:
 
+- **How it works** tour: a short, skippable walk through preparing and presenting a session. Opens by itself on a first visit, and any time from the home page
 - Create, rename and delete sessions
 - Add clips (button or drag & drop), set title and comments, delete slides
 - **Drag to reorder clips**: with a mouse, drag a clip anywhere; on touch, drag its handle or press and hold the clip. The list scrolls when you drag near its edge
 - Add shortcuts at the current playhead, rename them, move them, delete them
-- Present mode: the clip has its own uncovered area, with the title bar above it, playback controls below it, and shortcuts and comments in a side panel (below the clip on portrait phones). Previous/next clip, 1× / 0.5× / 0.25× speed, frame-by-frame stepping, optional fullscreen. A drawing tool rail sits beside the clip (above it on portrait phones)
+- Present mode: the clip has its own uncovered area, with the title bar above it, playback controls below it, and shortcuts and comments in a side panel (below the clip on portrait phones). Previous/next clip (‹ › beside the title, or under the clip), a clip picker (click the title to see every clip with its thumbnail and jump to one; a bottom sheet on phones), 1× / 0.5× / 0.25× speed, frame-by-frame stepping, optional fullscreen. A drawing tool rail sits beside the clip (above it on portrait phones)
 - **Auto-ring**: tap a player and a ring snaps to them (on-device player detection, works offline after first use)
 - Drawing on the video: arrows, lines, player rings and freehand, in five colours, solid or dashed (for runs), normal or thick. Undo and clear
 - Export a session to one `.analysis` file, import it on another device
@@ -35,6 +36,7 @@ Target browsers for the POC: Chrome/Edge on desktop and Chrome on Android. iPhon
 | Step one frame | ← → |
 | Jump 2 seconds | Shift + ← → |
 | Previous / next clip | ↑ ↓ or PageUp / PageDown (presentation clickers work) |
+| Pick any clip | G or click the title, then ↑ ↓ and Enter, or type its number and Enter |
 | Jump to shortcut | 1 – 9 |
 | Speed | S |
 | Show / hide side panel | N |
@@ -65,15 +67,50 @@ Click or tap the clip to play / pause. With a drawing tool selected, the clip is
 
 ## Development
 
-No runtime dependencies. The only dev tools are esbuild and TypeScript.
+One runtime dependency (`@mediapipe/tasks-vision`, for auto-ring, loaded on first use). Dev tools: esbuild, TypeScript and Playwright.
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173 with rebuild on save
+npm run dev        # http://localhost:5173 with rebuild on save (built into dist-dev/)
 npm run build      # production build into dist/
+npm run preview    # production build served on http://localhost:4174
 npm run typecheck
 npm test           # export-format round-trip tests
+npm run test:e2e   # browser tests (first time: npx playwright install chromium)
 ```
+
+Work happens on the `develop` branch; `main` is what's live.
+
+### In VS Code
+
+The `.vscode/` folder has everything wired up (needs [Node.js](https://nodejs.org) LTS):
+
+- **First time:** *Terminal → Run Task… → First-time setup* (npm install + the test browser), and accept the suggested **Playwright Test** extension.
+- **F5** starts the dev server and opens the app in Chrome attached to VS Code: breakpoints in `src/*.ts` work and console output goes to the Debug Console. Pick *App in Edge* or *Production build in Chrome* from the Run and Debug dropdown for the others. Press Ctrl+Shift+M in the browser's DevTools for phone sizes.
+- **Ctrl+Shift+B** starts just the dev server; build errors show in the Problems panel. The terminal prints the address to open on a phone.
+- **Terminal → Run Task…** has *Typecheck*, *Unit tests*, *Browser tests*, *Browser tests (interactive UI)* and *Check everything* (all three, before merging to `main`).
+- The **Testing** sidebar (Playwright extension) runs or debugs a single browser test.
+
+The dev server builds into `dist-dev/` and the tests into `dist/`, so both can run at once.
+
+On Windows, tasks run in Command Prompt. If you type `npm` in a PowerShell terminal and get "npm.ps1 is not digitally signed", open a Command Prompt or Git Bash terminal instead (the **+** dropdown in the terminal panel), or type `npm.cmd`. After installing Node.js, quit VS Code completely and reopen it so it finds `npm`.
+
+### Browser tests
+
+`npm run test:e2e` builds the app, serves it on port 4173 and runs `tests/e2e/` in Chromium (about 2 minutes). `npm run test:e2e:ui` opens Playwright's interactive runner. Screenshots, traces and an HTML report land in `test-results/`.
+
+| Spec | What it checks |
+| --- | --- |
+| `core` | Sessions, clips, titles, comments, shortcuts, frame stepping, saving across reload; present mode (shortcut keys, slow motion, side panel, next clip, nothing covering the clip); export to `.analysis` (every CRC verified) and import on a second "device", duplicate names, deleting removes stored clips |
+| `layout` | Present mode at 12 screen sizes, phones to laptop, portrait and landscape: no control outside its bar, nothing off screen, nothing over the clip, clip picker fully on screen. Saves screenshots per size |
+| `tour` | First-visit tour: opens on its own once, every step reachable (buttons, arrow keys, swipe), skip and Esc, reopens from the home page, doesn't interrupt people who already have sessions; every step fits phones in both orientations and tablets |
+| `clip-picker` | Present mode clip picker: open from the title or G, pick by click, arrows, or clip number; ‹ › beside the title; Esc and clicking outside close it; bottom sheet on phones in both orientations |
+| `drawing` | Drawing in the editor, saved per shortcut, shown on jump, frame step keeps it, play clears it, live drawing while presenting, drawings in exports |
+| `reorder` | Drag to reorder with a mouse, and with real touch events on a phone (handle, swipe-scrolls, press-and-hold with auto-scroll) |
+| `auto-ring` | Auto-ring behaviour, plus **accuracy on 38 hand-marked players** in five real match photos: the right player is ringed and floor rings land near the feet. Fails if detection tuning regresses |
+| `offline` | With the service worker: the app and auto-ring (detector and pose model) keep working offline after first use |
+
+Test clips are in `tests/e2e/fixtures/` (see its `CREDITS.md`). The same suite runs on GitHub for every push to `develop` and every pull request to `main` (`.github/workflows/tests.yml`).
 
 To try it on a phone during development, open `http://<your-computer-ip>:5173` on the same Wi-Fi. Over plain http the browser blocks some storage APIs, so videos are stored in IndexedDB instead of the private file system. Everything still works; the deployed https version is the real thing.
 
@@ -111,6 +148,8 @@ src/
   sw.js              service worker (offline cache), filled in at build time
 scripts/build.mjs    esbuild bundle + index.html + service worker precache list
 tests/zip.test.ts    ZIP round-trip tests
+tests/e2e/           browser tests (Playwright) and test clips
+scripts/serve.mjs    static server for dist/ (used by the browser tests)
 ```
 
 ### Branding

@@ -1,14 +1,17 @@
 // Build script: bundles src/ with esbuild, writes index.html and a service
 // worker whose precache list matches the hashed output files.
 //   node scripts/build.mjs          -> production build into dist/
-//   node scripts/build.mjs --serve  -> watch + local dev server
+//   node scripts/build.mjs --serve  -> watch + local dev server, built into dist-dev/
+//                                      (kept apart from dist/ so the browser tests,
+//                                      which rebuild dist/, can run alongside it)
 import * as esbuild from 'esbuild';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { networkInterfaces } from 'node:os';
 import { join, relative } from 'node:path';
 
 const serve = process.argv.includes('--serve');
-const outdir = 'dist';
+const outdir = serve ? 'dist-dev' : 'dist';
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 
 rmSync(outdir, { recursive: true, force: true });
@@ -41,8 +44,13 @@ function listFiles(dir) {
 const htmlAndSw = {
   name: 'html-and-sw',
   setup(build) {
+    // VS Code's "Dev server" task watches for this line to clear old problems.
+    if (serve) build.onStart(() => console.log('[build] building...'));
     build.onEnd((result) => {
-      if (result.errors.length || !result.metafile) return;
+      if (result.errors.length || !result.metafile) {
+        if (serve) console.log(`[build] ${new Date().toLocaleTimeString()} failed`);
+        return;
+      }
       const meta = result.metafile.outputs;
       const outputs = Object.keys(meta).map((p) => relative(outdir, p));
       const js = relative(outdir, Object.keys(meta).find((p) => meta[p].entryPoint === 'src/main.ts'));
@@ -97,6 +105,10 @@ if (serve) {
   await ctx.watch();
   const { port } = await ctx.serve({ servedir: outdir, port: 5173, host: '0.0.0.0' });
   console.log(`Dev server: http://localhost:${port}`);
+  // Addresses a phone on the same Wi-Fi can use.
+  for (const addr of Object.values(networkInterfaces()).flat()) {
+    if (addr && addr.family === 'IPv4' && !addr.internal && !addr.address.startsWith('169.254.')) console.log(`  on your network: http://${addr.address}:${port}`);
+  }
 } else {
   await esbuild.build(options);
 }

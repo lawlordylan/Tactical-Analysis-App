@@ -227,6 +227,58 @@ textarea.input { resize: vertical; min-height: 96px; }
 .counter { flex: none; white-space: nowrap; padding: 3px 8px; border-radius: 6px; background: var(--surface-3); font-size: 13px; color: var(--muted); }
 .present-title { font-size: clamp(16px, 1.8vw, 24px); font-weight: 750; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
+/* Title button (opens the clip picker) with ‹ › beside it. */
+.clip-heading { flex: 0 1 auto; min-width: 0; display: flex; font-size: 1rem; }
+.clip-picker {
+  display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; padding: 4px 10px 4px 4px;
+  border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.clip-picker:hover { background: var(--surface-2); border-color: var(--border); }
+.clip-picker[aria-expanded="true"] { background: var(--surface-2); border-color: var(--accent); }
+.clip-picker > .icon { flex: none; width: 18px; height: 18px; color: var(--muted); transition: transform .15s; }
+.clip-picker[aria-expanded="true"] > .icon { transform: rotate(180deg); }
+.clip-step {
+  display: inline-grid; place-items: center; flex: none; width: 34px; height: 34px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text); cursor: pointer;
+}
+.clip-step:hover { background: var(--surface-2); }
+.clip-step:disabled { opacity: .3; cursor: default; background: transparent; }
+.clip-step .icon { width: 20px; height: 20px; }
+.clip-picker:focus-visible, .clip-step:focus-visible, .clip-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Clip picker: a popover under the title; a bottom sheet on phones (see small screens). */
+.clip-menu-backdrop { position: absolute; inset: 0; z-index: 30; background: rgba(0, 0, 0, .35); }
+.clip-menu {
+  position: absolute; z-index: 31; left: var(--menu-left, 12px); top: var(--menu-top, 60px);
+  width: min(440px, calc(100vw - 24px)); max-height: calc(100dvh - var(--menu-top, 60px) - 16px);
+  display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .55); animation: menu-in .12s ease-out;
+}
+.clip-menu-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--border); }
+.clip-menu-head h2 { font: 700 12px var(--font); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.clip-menu-count { padding: 1px 7px; border-radius: 6px; background: var(--surface-3); font-size: 12px; color: var(--muted); }
+.clip-menu .clip-menu-close { width: 34px; height: 34px; background: transparent; }
+.clip-menu .clip-menu-close:hover { background: var(--surface-3); }
+.clip-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 2px; }
+.clip-row {
+  width: 100%; display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 6px 10px 6px 4px;
+  border: 0; border-radius: 10px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.clip-row:hover { background: var(--surface-3); }
+.clip-row[aria-current="true"] { background: #fff; color: var(--flag-ink); }
+.clip-num { flex: none; width: 24px; text-align: right; font-size: 12px; color: var(--muted); }
+.clip-thumb { flex: none; width: 72px; height: 41px; border-radius: 6px; object-fit: cover; background: var(--surface-3); }
+.clip-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.clip-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clip-meta { font-size: 12px; color: var(--muted); }
+.clip-meta:empty { display: none; }
+.clip-row[aria-current="true"] .clip-num, .clip-row[aria-current="true"] .clip-meta { color: var(--club); }
+.clip-menu-hint { flex: none; margin: 0; padding: 8px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); white-space: pre; }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes sheet-in { from { transform: translateY(100%); } }
+@media (pointer: coarse) { .clip-menu-hint { display: none; } }
+
 .present-body {
   flex: 1; min-height: 0; display: flex; gap: 12px;
   padding: 12px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
@@ -353,6 +405,85 @@ textarea.input { resize: vertical; min-height: 96px; }
   box-shadow: 0 8px 30px rgba(0, 0, 0, .4); animation: toast-in .2s ease-out;
 }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+.empty .tour-link { background: transparent; border-color: transparent; color: var(--accent); margin-top: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ---------- "How it works" tour ---------- */
+.dialog.tour {
+  width: min(600px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.tour-top { flex: none; display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 8px 10px 0 22px; }
+.tour-part { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.tour-skip { background: transparent; border-color: transparent; color: var(--muted); }
+.tour-skip:hover { color: var(--text); }
+.tour-main { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 22px 4px; display: flex; flex-direction: column; gap: 16px; }
+.tour-art {
+  flex: none; display: grid; place-items: center; aspect-ratio: 16 / 9; max-height: 34dvh;
+  border-radius: 12px; background: var(--bg); border: 1px solid var(--border); overflow: hidden;
+}
+.tour-art svg { width: 100%; height: 100%; display: block; font-family: var(--font); }
+.tour-art:has(.tour-crest) { position: relative; }
+.tour-crest {
+  position: absolute; inset: 0; margin: auto; height: 78%; width: auto; max-width: 90%; object-fit: contain;
+  filter: drop-shadow(0 6px 18px rgba(1, 103, 1, .45));
+}
+.dialog.tour h2 { font-size: 22px; margin-bottom: 8px; }
+.tour-body p { margin: 0 0 10px; color: var(--text); opacity: .88; line-height: 1.5; overflow-wrap: break-word; }
+.tour-body b { color: #fff; }
+.tour-keys { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; font-size: 14px; }
+kbd {
+  display: inline-block; min-width: 22px; padding: 1px 6px; margin: 0 1px; border-radius: 5px;
+  border: 1px solid var(--border); border-bottom-width: 2px; background: var(--surface-2);
+  font: 600 12px/1.5 var(--mono); color: var(--text); text-align: center; white-space: nowrap;
+}
+.tour-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 12px 22px 18px; border-top: 1px solid var(--border); }
+.tour-dots { display: flex; gap: 6px; }
+.tour-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--surface-3); transition: width .2s, background .2s; }
+.tour-dots span.on { width: 20px; border-radius: 4px; background: var(--accent); }
+/* Drawing colours */
+.tour-art .t-s1 { fill: var(--surface); } .tour-art .t-s2 { fill: var(--surface-2); } .tour-art .t-s3 { fill: var(--surface-3); }
+.tour-art .t-bg { fill: var(--bg); } .tour-art .t-bgf { fill: var(--bg); }
+.tour-art .t-ln { stroke: var(--border); stroke-width: 1; }
+.tour-art .t-club { fill: var(--club-2); } .tour-art .t-acc { fill: var(--accent); }
+.tour-art .t-wh { fill: #fff; } .tour-art .t-txt { fill: var(--text); } .tour-art .t-mu { fill: var(--muted); opacity: .6; }
+.tour-art .t-pitch { fill: #1c5a27; }
+.tour-art .t-sel { stroke: #fff; stroke-width: 2; }
+.tour-art .t-dash { fill: none; stroke: var(--surface-3); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.tour-art .t-ring { fill: none; stroke: var(--accent); stroke-width: 2; }
+.tour-art .t-wh-ln { fill: none; stroke: rgba(255, 255, 255, .35); stroke-width: 1.2; }
+.tour-art .t-acc-ln { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tour-art .t-mu-ln { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.tour-art text { font-size: 9px; font-weight: 600; }
+.tour-art .t-ink { fill: var(--flag-ink); } .tour-art .t-on { fill: #fff; font-size: 8px; }
+.tour-art .t-txt-f { fill: var(--text); } .tour-art .t-mu-f { fill: var(--muted); }
+.tour-art .t-b { font-weight: 800; } .tour-art .t-big { font-size: 18px; }
+.tour-art .t-player { fill: #e9f0eb; } .tour-art .t-them { fill: #ff8a3d; }
+.tour-art .t-glow { fill: rgba(60, 207, 94, .35); stroke: var(--accent); stroke-width: 2; }
+.tour-art .t-arrow { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; }
+.tour-art .t-arrow-head { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.tour-art .t-run { fill: none; stroke: #ffd84d; stroke-width: 2.5; stroke-dasharray: 7 6; stroke-linecap: round; }
+/* Phones: the tour fills the screen. */
+@media (max-width: 600px) {
+  .dialog.tour { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; border: 0; }
+  .tour-top { padding-left: 16px; }
+  .tour-main { padding: 4px 16px; }
+  .tour-foot { padding: 12px 16px max(16px, env(safe-area-inset-bottom)); }
+  .tour-dots { gap: 4px; }
+  .tour-dots span { width: 6px; height: 6px; }
+  .tour-dots span.on { width: 14px; }
+}
+/* Landscape phones: drawing beside the text. */
+@media (max-height: 500px) {
+  .dialog.tour { width: min(760px, 100vw); max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0 auto; border-radius: 0; border-top: 0; border-bottom: 0; }
+  .tour-top { min-height: 44px; padding-top: 4px; }
+  .tour-main { flex-direction: row; align-items: flex-start; gap: 18px; }
+  .tour-art { width: 42%; max-height: none; }
+  .tour-text { flex: 1; min-width: 0; }
+  .dialog.tour h2 { font-size: 19px; }
+  .tour-body p { font-size: 14px; margin-bottom: 8px; }
+  .tour-foot { padding-top: 8px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+}
 
 /* ---------- small screens ---------- */
 @media (max-width: 800px) {
@@ -391,10 +522,20 @@ textarea.input { resize: vertical; min-height: 96px; }
   .present-top { gap: 6px; }
   .present-top .ctl { width: 38px; height: 38px; }
   .present-top .help-btn { display: none; }
+  /* Room for the clip title: the crest gives way, the counter and arrow shrink. */
+  .present-crest { display: none; }
+  .clip-step { width: 28px; }
+  .clip-picker { gap: 6px; padding-right: 4px; }
+  .clip-picker .counter { padding: 2px 5px; font-size: 12px; }
+  .clip-picker > .icon { width: 14px; height: 14px; }
   .controls { gap: 4px; }
   .controls .ctl { width: 38px; height: 38px; }
   .controls .ctl-big { width: 46px; height: 46px; }
   .transport { padding: 8px 8px; }
+}
+/* The title matters more than "n / N" here; the clip picker still numbers every clip. */
+@media (max-width: 380px) {
+  .present-top .counter { display: none; }
 }
 @media (max-width: 340px) {
   .present-crest, .counter { display: none; }
@@ -421,6 +562,26 @@ textarea.input { resize: vertical; min-height: 96px; }
   .side-section { padding: 10px 12px; }
   .notes-body { font-size: 15px; }
   .sc-btn { min-height: 38px; }
+  .clip-step { width: 30px; height: 30px; }
+  .clip-picker { padding-top: 2px; padding-bottom: 2px; }
+}
+/* Phones: the clip picker is a bottom sheet. */
+@media (max-width: 600px), (max-height: 500px) {
+  .clip-menu {
+    left: 0; right: 0; top: auto; bottom: 0; margin: 0 auto; width: min(560px, 100%); max-height: min(80dvh, 640px);
+    border-radius: 18px 18px 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom);
+    animation: sheet-in .2s ease-out;
+  }
+  .clip-menu::before { content: ''; flex: none; width: 40px; height: 4px; margin: 8px auto 0; border-radius: 2px; background: rgba(255, 255, 255, .25); }
+  .clip-menu-head { border-bottom: 0; padding-top: 2px; padding-bottom: 2px; }
+  .clip-menu-backdrop { background: rgba(0, 0, 0, .55); }
+  .clip-menu-hint { display: none; }
+  .clip-row { min-height: 60px; }
+}
+@media (max-height: 500px) {
+  .clip-menu { max-height: 90dvh; }
+  .clip-row { min-height: 50px; }
+  .clip-thumb { width: 64px; height: 36px; }
 }
 /* Drawing rail on phones/tablets in portrait: a horizontal strip above the clip. */
 @media (orientation: portrait) and (max-width: 900px) {

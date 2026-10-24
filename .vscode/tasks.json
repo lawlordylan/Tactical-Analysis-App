@@ -1,0 +1,121 @@
+{
+  // Run any of these from Terminal > Run Task... (or Ctrl+Shift+P > "Tasks: Run Task").
+  //   Ctrl+Shift+B  starts the dev server.
+  //   "Check everything" runs the same checks as before merging to main.
+  "version": "2.0.0",
+  // On Windows, tasks run in Command Prompt: PowerShell can refuse to run
+  // npm's .ps1 shim when scripts must be signed, cmd uses npm.cmd instead.
+  "windows": {
+    "options": { "shell": { "executable": "cmd.exe", "args": ["/d", "/c"] } }
+  },
+  "tasks": [
+    {
+      "label": "Dev server",
+      "detail": "Rebuilds on save, http://localhost:5173 (phone URL printed in the terminal)",
+      "type": "shell",
+      "command": "npm run dev",
+      "isBackground": true,
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "servers" },
+      "problemMatcher": {
+        "owner": "esbuild",
+        "fileLocation": "relative",
+        "pattern": [
+          { "regexp": "^\\S+ \\[(ERROR|WARNING)\\] (.+)$", "severity": 1, "message": 2 },
+          { "regexp": "^\\s*$" },
+          { "regexp": "^\\s+(.+?):(\\d+):(\\d+):$", "file": 1, "line": 2, "column": 3 }
+        ],
+        "background": {
+          "activeBegin": true,
+          "beginsPattern": "^\\[build\\] building",
+          "endsPattern": "^\\[build\\] .* (ok|failed)"
+        }
+      }
+    },
+    {
+      "label": "Preview production build",
+      "detail": "Minified build with the service worker, http://localhost:4174",
+      "type": "shell",
+      "command": "npm run preview",
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "servers" },
+      "problemMatcher": {
+        "owner": "preview",
+        "pattern": { "regexp": "^__never__$" },
+        "background": { "activeBegin": true, "beginsPattern": "^__never__$", "endsPattern": "^Serving dist/" }
+      }
+    },
+    {
+      "label": "Typecheck",
+      "type": "shell",
+      "command": "npm run typecheck",
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true },
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "Unit tests",
+      "detail": "ZIP export-format round trip",
+      "type": "shell",
+      "command": "npm test",
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Browser tests",
+      "detail": "Full Playwright suite in headless Chromium (about a minute)",
+      "type": "shell",
+      "command": "npm run test:e2e",
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Browser tests (interactive UI)",
+      "detail": "Playwright UI: pick tests, watch them run, step through them",
+      "type": "shell",
+      "command": "npm run test:e2e:ui",
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Open last browser test report",
+      "type": "shell",
+      "command": "npx playwright show-report test-results/report",
+      "isBackground": true,
+      "presentation": { "reveal": "silent", "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Check everything",
+      "detail": "Typecheck, unit tests, then browser tests: run before merging to main",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Typecheck", "Unit tests", "Browser tests"],
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Install dependencies",
+      "type": "shell",
+      "command": "npm install",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Install test browser",
+      "type": "shell",
+      "command": "npx playwright install chromium",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "First-time setup",
+      "detail": "npm install + the Chromium build Playwright uses",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Install dependencies", "Install test browser"],
+      "problemMatcher": []
+    }
+  ]
+}

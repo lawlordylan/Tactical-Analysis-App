@@ -1,7 +1,7 @@
 // Present mode. The clip gets its own uncovered area; everything else sits
 // around it:
 //
-//   ┌──────────────────────── top bar: n/N · title · panel · help · fs · exit ┐
+//   ┌──────────── top bar: ‹ [n/N · title ▾] › · panel · help · fs · exit ┐
 //   │ tools │              stage (video)              │ side panel:         │
 //   │ rail  │                                         │  shortcuts          │
 //   │       ├─────────────────────────────────────────┤  comments           │
@@ -15,6 +15,11 @@
 // belongs to a moment in the clip: jumping to a shortcut shows its saved
 // drawing, and playing or seeking away clears the screen (frame steps keep it).
 // Drawings made while presenting are not saved; prepare them in the editor.
+//
+// Clip picker: clicking the title (or G) lists every clip to jump to. It's
+// the one thing allowed over the clip: it only opens when asked for, pauses
+// the clip and closes as soon as a clip is picked. A popover under the title
+// on larger screens, a bottom sheet on phones (CSS decides which).
 //
 // Works with touch, mouse, keyboard and presentation clickers (PageUp/PageDown).
 import { h, icon, iconBtn } from '../lib/dom';
@@ -50,7 +55,27 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
   const stage = h('div', { class: 'stage' }, video, msg);
 
   const counter = h('span', { class: 'counter mono' });
-  const title = h('h1', { class: 'present-title' });
+  const title = h('span', { class: 'present-title' });
+  const pickerBtn = h(
+    'button',
+    { class: 'clip-picker', type: 'button', title: 'All clips (G)', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', onclick: () => togglePicker() },
+    counter,
+    title,
+    icon('down'),
+  );
+  const titlePrev = iconBtn('back', 'Previous clip (PageUp / ↑)', () => goTo(index - 1), 'clip-step');
+  const titleNext = iconBtn('forward', 'Next clip (PageDown / ↓)', () => goTo(index + 1), 'clip-step');
+
+  const pickerList = h('ol', { class: 'clip-list' });
+  const pickerCount = h('span', { class: 'clip-menu-count mono' });
+  const picker = h(
+    'div',
+    { class: 'clip-menu', role: 'dialog', 'aria-label': 'All clips', hidden: true },
+    h('div', { class: 'clip-menu-head' }, h('h2', null, 'Clips'), pickerCount, h('span', { class: 'spacer' }), iconBtn('close', 'Close (Esc)', () => closePicker(), 'ctl clip-menu-close')),
+    pickerList,
+    h('p', { class: 'clip-menu-hint' }, '↑ ↓ then Enter  ·  type a clip number  ·  Esc to close'),
+  );
+  const pickerBackdrop = h('div', { class: 'clip-menu-backdrop', hidden: true, onclick: () => closePicker() });
 
   const shortcutList = h('ol', { class: 'sc-list' });
   const shortcutSection = h('section', { class: 'side-section' }, h('h2', null, 'Shortcuts'), shortcutList);
@@ -118,6 +143,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
         ['← →', 'Step one frame'],
         ['Shift + ← →', 'Jump 2 seconds'],
         ['↑ ↓ / PageUp PageDown', 'Previous / next clip'],
+        ['G', 'All clips: pick one to jump to'],
         ['1 – 9', 'Jump to shortcut'],
         ['S', 'Change speed'],
         ['N', 'Show / hide panel'],
@@ -138,8 +164,9 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
       'header',
       { class: 'present-top' },
       h('img', { class: 'present-crest', src: CREST, alt: '' }),
-      counter,
-      title,
+      titlePrev,
+      h('h1', { class: 'clip-heading' }, pickerBtn),
+      titleNext,
       h('span', { class: 'spacer' }),
       panelBtn,
       iconBtn('help', 'Keyboard shortcuts (?)', () => (helpPanel.hidden = !helpPanel.hidden), 'ctl help-btn'),
@@ -148,6 +175,8 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
     ),
     h('div', { class: 'present-body' }, toolRail, h('div', { class: 'present-main' }, stage, transport), side),
     helpPanel,
+    pickerBackdrop,
+    picker,
   );
   root.append(view);
   document.body.classList.add('presenting');
@@ -163,8 +192,8 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
     title.textContent = slide.title || 'Untitled clip';
     notesBody.textContent = slide.notes || 'No comments for this clip.';
     notesBody.classList.toggle('muted', !slide.notes);
-    prevBtn.disabled = i === 0;
-    nextBtn.disabled = i === slides.length - 1;
+    prevBtn.disabled = titlePrev.disabled = i === 0;
+    nextBtn.disabled = titleNext.disabled = i === slides.length - 1;
     renderShortcuts(slide);
     showDrawing([], null);
     history.replaceState(null, '', `#/present/${sessionId}/${i}`);
@@ -204,6 +233,100 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
     index = i;
     load(index);
   }
+
+  // ---------- clip picker ----------
+  let pickerOpen = false;
+  let typed = '';
+  let typedTimer = 0;
+  const pickerRows = () => [...pickerList.querySelectorAll<HTMLButtonElement>('.clip-row')];
+
+  function clipMeta(s: Slide) {
+    const n = s.shortcuts.length;
+    return [s.video ? (s.duration ? fmtTime(s.duration, false) : '') : 'No clip', n ? `${n} shortcut${n === 1 ? '' : 's'}` : '']
+      .filter(Boolean)
+      .join('  ·  ');
+  }
+
+  function openPicker() {
+    if (pickerOpen) return;
+    pickerOpen = true;
+    video.pause();
+    helpPanel.hidden = true;
+    pickerCount.textContent = String(slides.length);
+    pickerList.replaceChildren(
+      ...slides.map((s, i) =>
+        h(
+          'li',
+          null,
+          h(
+            'button',
+            { class: 'clip-row', type: 'button', 'aria-current': i === index ? 'true' : null, onclick: () => pickClip(i) },
+            h('span', { class: 'clip-num mono' }, String(i + 1)),
+            s.thumb ? h('img', { class: 'clip-thumb', src: s.thumb, alt: '' }) : h('span', { class: 'clip-thumb' }),
+            h('span', { class: 'clip-text' }, h('span', { class: 'clip-name' }, s.title || 'Untitled clip'), h('span', { class: 'clip-meta' }, clipMeta(s))),
+          ),
+        ),
+      ),
+    );
+    picker.hidden = pickerBackdrop.hidden = false;
+    pickerBtn.setAttribute('aria-expanded', 'true');
+    placePicker();
+    const current = pickerRows()[index];
+    current?.scrollIntoView({ block: 'center' });
+    current?.focus({ preventScroll: true });
+  }
+
+  /** Popover position under the title. Phones ignore it: the sheet sits at the bottom. */
+  function placePicker() {
+    const r = pickerBtn.getBoundingClientRect();
+    const width = Math.min(440, innerWidth - 24);
+    picker.style.setProperty('--menu-left', `${Math.max(12, Math.min(r.left, innerWidth - width - 12))}px`);
+    picker.style.setProperty('--menu-top', `${r.bottom + 6}px`);
+  }
+
+  function closePicker() {
+    if (!pickerOpen) return;
+    pickerOpen = false;
+    typed = '';
+    picker.hidden = pickerBackdrop.hidden = true;
+    pickerBtn.setAttribute('aria-expanded', 'false');
+    // Keep focus off buttons so Space means play/pause again.
+    (document.activeElement as HTMLElement | null)?.blur?.();
+  }
+
+  const togglePicker = () => (pickerOpen ? closePicker() : openPicker());
+
+  function pickClip(i: number) {
+    closePicker();
+    goTo(i);
+  }
+
+  /** Keys while the picker is open. Everything else in present mode waits until it closes. */
+  function pickerKey(e: KeyboardEvent) {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.key === 'Tab') return;
+    const rows = pickerRows();
+    const at = rows.indexOf(document.activeElement as HTMLButtonElement);
+    const focusRow = (i: number) => rows[Math.max(0, Math.min(rows.length - 1, i))]?.focus();
+    const k = e.key;
+    e.preventDefault();
+    if (k === 'Escape' || k === 'g' || k === 'G') closePicker();
+    else if (k === 'ArrowDown' || k === 'PageDown') focusRow(at < 0 ? index : at + 1);
+    else if (k === 'ArrowUp' || k === 'PageUp') focusRow(at < 0 ? index : at - 1);
+    else if (k === 'Home') focusRow(0);
+    else if (k === 'End') focusRow(rows.length - 1);
+    else if (k === 'Enter' || k === ' ') pickClip(at < 0 ? index : at);
+    else if (/^[0-9]$/.test(k)) {
+      // Digits pick out a clip number ("1", "2" → 12), then Enter goes there.
+      clearTimeout(typedTimer);
+      typed = (typed + k).replace(/^0+/, '');
+      if (Number(typed) > rows.length) typed = k === '0' ? '' : k;
+      if (typed) focusRow(Number(typed) - 1);
+      typedTimer = window.setTimeout(() => (typed = ''), 1200);
+    }
+  }
+
+  const onResize = () => pickerOpen && placePicker();
+  window.addEventListener('resize', onResize);
 
   function renderShortcuts(slide: Slide) {
     shortcutList.replaceChildren(
@@ -345,6 +468,12 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
 
   const onKey = (e: KeyboardEvent) => {
     if (isTyping(e)) return;
+    if (pickerOpen) return pickerKey(e);
+    if ((e.key === 'g' || e.key === 'G') && !(e.ctrlKey || e.metaKey || e.altKey)) {
+      e.preventDefault();
+      openPicker();
+      return;
+    }
     if (helpPanel.hidden && bar.handleKey(e)) {
       e.preventDefault();
       return;
@@ -383,6 +512,8 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
     cancelAnimationFrame(raf);
     document.removeEventListener('keydown', onKey);
     document.removeEventListener('fullscreenchange', onFsChange);
+    window.removeEventListener('resize', onResize);
+    clearTimeout(typedTimer);
     document.body.classList.remove('presenting');
     video.pause();
     video.removeAttribute('src');
