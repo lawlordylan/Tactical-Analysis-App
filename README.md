@@ -14,7 +14,7 @@ Working now:
 - Add clips (button or drag & drop), set title and comments, delete slides
 - **Drag to reorder clips**: with a mouse, drag a clip anywhere; on touch, drag its handle or press and hold the clip. The list scrolls when you drag near its edge
 - Add shortcuts at the current playhead, rename them, move them, delete them
-- Present mode: the clip has its own uncovered area, with the title bar above it, playback controls below it, and shortcuts and comments in a side panel (below the clip on portrait phones). Previous/next clip, 1× / 0.5× / 0.25× speed, frame-by-frame stepping, optional fullscreen. A drawing tool rail sits beside the clip (above it on portrait phones)
+- Present mode: the clip has its own uncovered area, with the title bar above it, playback controls below it, and shortcuts and comments in a side panel (below the clip on portrait phones). Previous/next clip (‹ › beside the title, or under the clip), a clip picker (click the title to see every clip with its thumbnail and jump to one; a bottom sheet on phones), 1× / 0.5× / 0.25× speed, frame-by-frame stepping, optional fullscreen. A drawing tool rail sits beside the clip (above it on portrait phones)
 - **Auto-ring**: tap a player and a ring snaps to them (on-device player detection, works offline after first use)
 - Drawing on the video: arrows, lines, player rings and freehand, in five colours, solid or dashed (for runs), normal or thick. Undo and clear
 - Export a session to one `.analysis` file, import it on another device
@@ -35,6 +35,7 @@ Target browsers for the POC: Chrome/Edge on desktop and Chrome on Android. iPhon
 | Step one frame | ← → |
 | Jump 2 seconds | Shift + ← → |
 | Previous / next clip | ↑ ↓ or PageUp / PageDown (presentation clickers work) |
+| Pick any clip | G or click the title, then ↑ ↓ and Enter, or type its number and Enter |
 | Jump to shortcut | 1 – 9 |
 | Speed | S |
 | Show / hide side panel | N |
@@ -100,7 +101,8 @@ On Windows, tasks run in Command Prompt. If you type `npm` in a PowerShell termi
 | Spec | What it checks |
 | --- | --- |
 | `core` | Sessions, clips, titles, comments, shortcuts, frame stepping, saving across reload; present mode (shortcut keys, slow motion, side panel, next clip, nothing covering the clip); export to `.analysis` (every CRC verified) and import on a second "device", duplicate names, deleting removes stored clips |
-| `layout` | Present mode at 12 screen sizes, phones to laptop, portrait and landscape: no control outside its bar, nothing off screen, nothing over the clip. Saves a screenshot per size |
+| `layout` | Present mode at 12 screen sizes, phones to laptop, portrait and landscape: no control outside its bar, nothing off screen, nothing over the clip, clip picker fully on screen. Saves screenshots per size |
+| `clip-picker` | Present mode clip picker: open from the title or G, pick by click, arrows, or clip number; ‹ › beside the title; Esc and clicking outside close it; bottom sheet on phones in both orientations |
 | `drawing` | Drawing in the editor, saved per shortcut, shown on jump, frame step keeps it, play clears it, live drawing while presenting, drawings in exports |
 | `reorder` | Drag to reorder with a mouse, and with real touch events on a phone (handle, swipe-scrolls, press-and-hold with auto-scroll) |
 | `auto-ring` | Auto-ring behaviour, plus **accuracy on 38 hand-marked players** in five real match photos: the right player is ringed and floor rings land near the feet. Fails if detection tuning regresses |

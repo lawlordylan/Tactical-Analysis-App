@@ -49,6 +49,23 @@ test('present mode fits phones, tablets and laptops in both orientations', async
     });
     problems.push(...found.map((f) => `${w}x${h} ${f}`));
     await page.screenshot({ path: testInfo.outputPath(`present-${w}x${h}.png`) });
+
+    // Clip picker: fully on screen, with the current clip in view.
+    await page.locator('.clip-picker').click();
+    const picker = await page.evaluate(async () => {
+      const m = document.querySelector('.clip-menu')!;
+      await Promise.all(m.getAnimations().map((a) => a.finished));
+      const r = m.getBoundingClientRect();
+      const cur = document.querySelector('.clip-row[aria-current="true"]')!.getBoundingClientRect();
+      const out: string[] = [];
+      if (r.left < -0.5 || r.right > innerWidth + 0.5 || r.top < -0.5 || r.bottom > innerHeight + 0.5) out.push('clip picker off screen');
+      if (cur.top < r.top - 0.5 || cur.bottom > r.bottom + 0.5 || cur.right > r.right + 0.5) out.push('current clip hidden in the picker');
+      return out;
+    });
+    problems.push(...picker.map((f) => `${w}x${h} ${f}`));
+    await page.screenshot({ path: testInfo.outputPath(`present-${w}x${h}-picker.png`) });
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.clip-menu')).toBeHidden();
   }
   expect(problems).toEqual([]);
 });

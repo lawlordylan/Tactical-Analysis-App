@@ -48,6 +48,7 @@ const ICONS: Record<string, string> = {
   up: '<path d="M6 14l6-6 6 6"/>',
   down: '<path d="M6 10l6 6 6-6"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',
+  forward: '<path d="M9 5l7 7-7 7"/>',
   present: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M12 16v4M8 20h8"/><path d="M10 7.5v5l4-2.5z" fill="currentColor" stroke="none"/>',
   export: '<path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/>',
   import: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 13v7h14v-7"/>',
