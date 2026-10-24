@@ -12,6 +12,11 @@ const SIZES: [number, number][] = [
 test.use({ isMobile: true, hasTouch: true, deviceScaleFactor: 2, viewport: { width: 412, height: 915 } });
 
 test('present mode fits phones, tablets and laptops in both orientations', async ({ page }, testInfo) => {
+  // Present mode asks for fullscreen, and newer Chrome won't resize a fullscreen window.
+  // This test is about layout at each size, so keep the window resizable.
+  await page.addInitScript(() => {
+    Element.prototype.requestFullscreen = () => Promise.resolve();
+  });
   await createSession(page, 'Layout', [COUNTER_PRESS, COUNTER_PRESS]);
   await page.locator('.topbar .btn.primary').click(); // Present
   await expect(page.locator('.counter')).toHaveText('1 / 2');
