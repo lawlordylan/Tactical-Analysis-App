@@ -19,6 +19,9 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'] },
+    // Tests start with no sessions, which would open the first-visit tour; mark it seen.
+    // tour.spec.ts clears this to test the tour itself.
+    storageState: { cookies: [], origins: [{ origin: 'http://localhost:4173', localStorage: [{ name: 'tourSeen', value: '1' }] }] },
   },
   webServer: {
     command: 'node scripts/build.mjs && node scripts/serve.mjs 4173',

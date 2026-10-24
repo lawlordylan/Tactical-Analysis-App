@@ -6,6 +6,7 @@ import { createSession, deleteSession, getSlide, listSessions } from '../lib/sto
 import type { Session } from '../lib/types';
 import { fmtBytes, fmtDate } from '../lib/util';
 import { CREST, go, pickAndImport, runExport, startPresenting } from './actions';
+import { openTour, tourSeen } from './tour';
 
 export async function renderHome(root: HTMLElement): Promise<() => void> {
   const list = h('div', { class: 'session-grid' });
@@ -32,6 +33,11 @@ export async function renderHome(root: HTMLElement): Promise<() => void> {
         { class: 'brand' },
         h('img', { class: 'brand-crest', src: CREST, alt: '' }),
         h('span', { class: 'brand-text' }, h('span', { class: 'brand-name' }, 'Killeshin FC'), h('span', { class: 'brand-sub' }, 'Match Analysis')),
+      ),
+      h(
+        'div',
+        { class: 'topbar-actions' },
+        h('button', { class: 'btn', type: 'button', title: 'How it works', onclick: () => openTour() }, icon('help'), h('span', { class: 'label' }, 'How it works')),
       ),
     ),
     h(
@@ -73,6 +79,7 @@ export async function renderHome(root: HTMLElement): Promise<() => void> {
           h('h2', null, 'No sessions yet'),
           h('p', { class: 'muted' }, 'Start with a new session for your latest match, or import one shared from another device.'),
           h('button', { class: 'btn primary', type: 'button', onclick: newSession }, icon('plus'), 'New session'),
+          h('button', { class: 'btn tour-link', type: 'button', onclick: () => openTour() }, 'New here? See how it works'),
         ),
       );
     }
@@ -83,6 +90,7 @@ export async function renderHome(root: HTMLElement): Promise<() => void> {
       `Stored on this device: ${fmtBytes(info.usage)}${isFinite(info.quota) ? ` of ~${fmtBytes(info.quota)} available` : ''}`,
       info.persisted ? ' · protected from automatic clean-up' : '',
     );
+    return sessions.length;
   }
 
   async function card(s: Session): Promise<HTMLElement> {
@@ -113,6 +121,8 @@ export async function renderHome(root: HTMLElement): Promise<() => void> {
     );
   }
 
-  await refresh();
+  const count = await refresh();
+  // First visit: no sessions yet and the tour hasn't been seen.
+  if (!count && !tourSeen()) openTour();
   return () => {};
 }

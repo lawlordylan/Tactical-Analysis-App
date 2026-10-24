@@ -10,6 +10,7 @@ Everything is stored on the device. Nothing is uploaded anywhere. To move a sess
 
 Working now:
 
+- **How it works** tour: a short, skippable walk through preparing and presenting a session. Opens by itself on a first visit, and any time from the home page
 - Create, rename and delete sessions
 - Add clips (button or drag & drop), set title and comments, delete slides
 - **Drag to reorder clips**: with a mouse, drag a clip anywhere; on touch, drag its handle or press and hold the clip. The list scrolls when you drag near its edge
@@ -102,6 +103,7 @@ On Windows, tasks run in Command Prompt. If you type `npm` in a PowerShell termi
 | --- | --- |
 | `core` | Sessions, clips, titles, comments, shortcuts, frame stepping, saving across reload; present mode (shortcut keys, slow motion, side panel, next clip, nothing covering the clip); export to `.analysis` (every CRC verified) and import on a second "device", duplicate names, deleting removes stored clips |
 | `layout` | Present mode at 12 screen sizes, phones to laptop, portrait and landscape: no control outside its bar, nothing off screen, nothing over the clip, clip picker fully on screen. Saves screenshots per size |
+| `tour` | First-visit tour: opens on its own once, every step reachable (buttons, arrow keys, swipe), skip and Esc, reopens from the home page, doesn't interrupt people who already have sessions; every step fits phones in both orientations and tablets |
 | `clip-picker` | Present mode clip picker: open from the title or G, pick by click, arrows, or clip number; ‹ › beside the title; Esc and clicking outside close it; bottom sheet on phones in both orientations |
 | `drawing` | Drawing in the editor, saved per shortcut, shown on jump, frame step keeps it, play clears it, live drawing while presenting, drawings in exports |
 | `reorder` | Drag to reorder with a mouse, and with real touch events on a phone (handle, swipe-scrolls, press-and-hold with auto-scroll) |
