@@ -15,12 +15,15 @@ See `README.md` for features, keyboard shortcuts and design notes.
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173, rebuilds on save (open on a phone via http://<lan-ip>:5173)
+npm run dev        # http://localhost:5173, rebuilds on save into dist-dev/ (prints the phone URL)
 npm run build      # production build into dist/
+npm run preview    # production build served on http://localhost:4174
 npm run typecheck
 npm test           # ZIP export-format round-trip tests
 npm run test:e2e   # Playwright browser tests (first time: npx playwright install chromium)
 ```
+
+VS Code tasks and launch configs are in `.vscode/` (F5 = dev server + debug in Chrome; see README "In VS Code"). Keep them in step with the npm scripts.
 
 ## Stack and conventions
 

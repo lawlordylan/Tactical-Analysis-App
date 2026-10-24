@@ -1,0 +1,18 @@
+{
+  // Use the project's TypeScript (same version as `npm run typecheck`).
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  // Hide build output and test results from search and Quick Open.
+  "search.exclude": {
+    "dist": true,
+    "dist-dev": true,
+    "dist-test": true,
+    "test-results": true
+  },
+  "files.watcherExclude": {
+    "**/dist/**": true,
+    "**/dist-dev/**": true,
+    "**/dist-test/**": true,
+    "**/test-results/**": true
+  }
+}

@@ -1,0 +1,6 @@
+{
+  // VS Code suggests these when the folder is opened.
+  // Playwright Test adds the browser tests to the Testing sidebar: run or
+  // debug a single test, with a breakpoint, from the green arrow beside it.
+  "recommendations": ["ms-playwright.playwright"]
+}

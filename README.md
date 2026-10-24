@@ -69,14 +69,29 @@ One runtime dependency (`@mediapipe/tasks-vision`, for auto-ring, loaded on firs
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173 with rebuild on save
+npm run dev        # http://localhost:5173 with rebuild on save (built into dist-dev/)
 npm run build      # production build into dist/
+npm run preview    # production build served on http://localhost:4174
 npm run typecheck
 npm test           # export-format round-trip tests
 npm run test:e2e   # browser tests (first time: npx playwright install chromium)
 ```
 
 Work happens on the `develop` branch; `main` is what's live.
+
+### In VS Code
+
+The `.vscode/` folder has everything wired up (needs [Node.js](https://nodejs.org) LTS):
+
+- **First time:** *Terminal → Run Task… → First-time setup* (npm install + the test browser), and accept the suggested **Playwright Test** extension.
+- **F5** starts the dev server and opens the app in Chrome attached to VS Code: breakpoints in `src/*.ts` work and console output goes to the Debug Console. Pick *App in Edge* or *Production build in Chrome* from the Run and Debug dropdown for the others. Press Ctrl+Shift+M in the browser's DevTools for phone sizes.
+- **Ctrl+Shift+B** starts just the dev server; build errors show in the Problems panel. The terminal prints the address to open on a phone.
+- **Terminal → Run Task…** has *Typecheck*, *Unit tests*, *Browser tests*, *Browser tests (interactive UI)* and *Check everything* (all three, before merging to `main`).
+- The **Testing** sidebar (Playwright extension) runs or debugs a single browser test.
+
+The dev server builds into `dist-dev/` and the tests into `dist/`, so both can run at once.
+
+On Windows, tasks run in Command Prompt. If you type `npm` in a PowerShell terminal and get "npm.ps1 is not digitally signed", open a Command Prompt or Git Bash terminal instead (the **+** dropdown in the terminal panel), or type `npm.cmd`. After installing Node.js, quit VS Code completely and reopen it so it finds `npm`.
 
 ### Browser tests
 
