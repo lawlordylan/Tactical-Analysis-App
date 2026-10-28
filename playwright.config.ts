@@ -32,6 +32,9 @@ export default defineConfig({
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'], viewport },
+      // WebKit on GitHub's Macs is occasionally slow with video timing; one retry, and the
+      // report lists any test that needed it as "flaky".
+      retries: process.env.CI ? 1 : 0,
     },
   ],
   webServer: {
