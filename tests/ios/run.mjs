@@ -62,6 +62,7 @@ const TYPES = {
   '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm',
 };
 const FIXTURES = new Set(['h264.mp4', 'hevc.mov', 'hevc-hdr.mov', 'counter-press.webm']);
+const progress = [];
 let gotReport;
 const report = new Promise((r) => (gotReport = r));
 
@@ -82,7 +83,10 @@ const server = createServer((req, res) => {
     req.on('data', (c) => (body += c));
     req.on('end', () => {
       res.writeHead(204).end();
-      if (path === '/selftest/log') console.log(`  ${body}`);
+      if (path === '/selftest/log') {
+        console.log(`  ${body}`);
+        progress.push(body);
+      }
       else if (path === '/selftest/report') gotReport(JSON.parse(body));
     });
     return;
@@ -104,8 +108,13 @@ const waitForReport = (ms) =>
 
 // ---- drivers ----
 let result;
-if (driver === 'simulator') result = await runSimulator();
-else result = await runPlaywright();
+try {
+  result = driver === 'simulator' ? await runSimulator() : await runPlaywright();
+} catch (e) {
+  // Report the runner's own failure the same way as a failed self-test, so it shows on GitHub.
+  result = { passed: false, checks: [], crashed: `Runner failed: ${e?.stack ?? e}` };
+}
+if (!result.passed && progress.length) result.lastProgress = progress.slice(-20);
 server.close();
 
 // ---- summary ----
@@ -117,6 +126,7 @@ const md = [
   `**${result.browser ?? 'unknown browser'}**${result.device ? ` · ${result.device}` : ''}`,
   '',
   ...(result.crashed ? ['```', String(result.crashed), '```', ''] : []),
+  ...(result.lastProgress && !result.checks?.length ? ['Last messages from the page:', '```', ...result.lastProgress, '```', ''] : []),
   '| | Check | Details |',
   '| --- | --- | --- |',
   ...(result.checks ?? []).map((c) => `| ${icon(c)} | ${c.name} | ${(c.detail ?? '').replace(/\|/g, '\\|')} |`),
@@ -198,15 +208,15 @@ async function runSimulator() {
   };
   try {
     await sleep(2000);
-    simctl('openurl', dev.udid, `${base}/selftest/`);
+    await openUrl(dev.udid, `${base}/selftest/`);
     const r = await waitForReport(300_000);
     shot('1-selftest.png');
     if (r.sessionId) {
       // The app itself: the editor, then present mode on the HEVC clip.
-      simctl('openurl', dev.udid, `${base}/?nosw#/session/${r.sessionId}`);
+      await openUrl(dev.udid, `${base}/?nosw#/session/${r.sessionId}`);
       await sleep(8000);
       shot('2-editor.png');
-      simctl('openurl', dev.udid, `${base}/?nosw#/present/${r.sessionId}/1`);
+      await openUrl(dev.udid, `${base}/?nosw#/present/${r.sessionId}/1`);
       await sleep(8000);
       shot('3-present-hevc.png');
     }
@@ -223,6 +233,20 @@ async function runSimulator() {
       } catch {
         /* already off */
       }
+    }
+  }
+}
+
+/** Opens a URL in the Simulator's Safari, retrying while Safari is still starting up. */
+async function openUrl(udid, url) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      simctl('openurl', udid, url);
+      return;
+    } catch (e) {
+      if (attempt >= 5) throw e;
+      console.log(`  openurl failed (attempt ${attempt}), retrying: ${String(e.message).split('\n')[0]}`);
+      await sleep(5000);
     }
   }
 }
