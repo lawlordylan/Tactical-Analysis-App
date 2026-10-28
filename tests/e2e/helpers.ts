@@ -130,12 +130,28 @@ export const storedOrder = (page: Page) =>
       }),
   );
 
-/** Number of video files in the browser's private file system. */
+/**
+ * Number of this profile's video files in the browser's private file system. Only files
+ * this profile's database has referenced count: WebKit on macOS shares the private file
+ * system between Playwright profiles, so other tests' clips can be there too.
+ */
 export const storedVideoCount = (page: Page) =>
   page.evaluate(async () => {
+    const slides = await new Promise<{ video?: { id: string } }[]>((res, rej) => {
+      const o = indexedDB.open('tactical-analysis');
+      o.onerror = () => rej(o.error);
+      o.onsuccess = () => {
+        const q = o.result.transaction('slides').objectStore('slides').getAll();
+        q.onsuccess = () => res(q.result);
+      };
+    });
+    // Remember every id seen, so a deleted clip whose file is left behind still counts.
+    const seen = new Set<string>(JSON.parse(localStorage.getItem('test:videoIds') || '[]'));
+    for (const s of slides) if (s.video) seen.add(s.video.id);
+    localStorage.setItem('test:videoIds', JSON.stringify([...seen]));
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('videos');
     let n = 0;
-    for await (const _ of (dir as unknown as { keys(): AsyncIterable<string> }).keys()) n++;
+    for await (const name of (dir as unknown as { keys(): AsyncIterable<string> }).keys()) if (seen.has(name)) n++;
     return n;
   });
 

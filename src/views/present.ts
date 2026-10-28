@@ -24,7 +24,7 @@
 // Works with touch, mouse, keyboard and presentation clickers (PageUp/PageDown).
 import { h, icon, iconBtn } from '../lib/dom';
 import { getVideo } from '../lib/files';
-import { stepFrame, watchFps } from '../lib/media';
+import { confirmSoundOnly, playbackProblem, stepFrame, watchFps } from '../lib/media';
 import { getSession, getSlides, saveSlide } from '../lib/store';
 import type { Slide } from '../lib/types';
 import { fmtTime, isTyping } from '../lib/util';
@@ -46,6 +46,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
 
   let index = Math.min(Math.max(0, startIndex || 0), slides.length - 1);
   let url: string | null = null;
+  let currentBlob: Blob | null = null;
   let stopFps = () => {};
   let loadToken = 0;
 
@@ -200,6 +201,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
 
     if (url) URL.revokeObjectURL(url);
     url = null;
+    currentBlob = null;
     if (!slide.video) {
       video.removeAttribute('src');
       showMsg('This slide has no clip.');
@@ -208,6 +210,7 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
     try {
       const blob = await getVideo(slide.video);
       if (token !== loadToken) return;
+      currentBlob = blob;
       url = URL.createObjectURL(blob);
       video.src = url;
       video.defaultPlaybackRate = rememberedSpeed;
@@ -223,8 +226,8 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
     }
   }
 
-  function showMsg(text: string) {
-    msg.textContent = text;
+  function showMsg(text: string, details?: string) {
+    msg.replaceChildren(details ? h('div', null, h('p', null, text), h('p', { class: 'player-msg-details' }, details)) : text);
     msg.hidden = false;
   }
 
@@ -417,8 +420,17 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
     if (video.videoWidth && video.videoHeight) stage.style.setProperty('--clip-ratio', `${video.videoWidth} / ${video.videoHeight}`);
     syncTime();
   });
-  video.addEventListener('error', () => {
-    if (video.getAttribute('src')) showMsg("This browser can't play this clip's format. Re-export it as H.264 MP4.");
+  const showProblem = async () => {
+    if (!video.getAttribute('src')) return;
+    const slide = slides[index];
+    const { message, details } = await playbackProblem(video, currentBlob, slide?.video ?? null);
+    if (slides[index] === slide) showMsg(message, details);
+  };
+  video.addEventListener('error', showProblem);
+  video.addEventListener('loadedmetadata', () => {
+    confirmSoundOnly(video).then((soundOnly) => {
+      if (soundOnly) showProblem();
+    });
   });
   // Smooth scrubber and shortcut highlight while playing.
   let raf = 0;

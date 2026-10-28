@@ -1,5 +1,5 @@
 // Core flows: prepare a session, present it, export it and import it on another device.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test';
 import { readFileSync } from 'node:fs';
 import { crc32, readZip } from '../../src/lib/zip';
 import { APP, BUILD_UP, COUNTER_PRESS, createSession, currentTime, seek, storedVideoCount, waitForVideo } from './helpers';
@@ -22,6 +22,13 @@ async function preparedSession(page: Page, title = 'vs Rovers – 2nd half') {
   await expect(page.locator('.shortcut-row')).toHaveCount(2);
   await page.waitForTimeout(600); // autosave debounce
 }
+
+test('the home page shows the app version', async ({ page }) => {
+  const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+  await page.goto(APP);
+  await expect(page.locator('.topbar .version-badge')).toHaveText(`v${version}`);
+  await expect(page.locator('.topbar .version-badge')).toBeVisible();
+});
 
 test('prepare a session: clips, title, comments, shortcuts, frame stepping, saved across reload', async ({ page }) => {
   await page.goto(APP);
@@ -89,7 +96,7 @@ test('present mode: shortcuts, slow motion, frame step, side panel, next clip, e
   await expect(page.locator('.slide-item.selected .slide-num')).toHaveText('2');
 });
 
-test('export to a .analysis file and import it on another device', async ({ page, browser }, testInfo) => {
+test('export to a .analysis file and import it on another device', async ({ page, newDevice }, testInfo) => {
   await page.addInitScript(() => delete (window as { showSaveFilePicker?: unknown }).showSaveFilePicker);
   await preparedSession(page);
 
@@ -114,7 +121,7 @@ test('export to a .analysis file and import it on another device', async ({ page
   expect(meta.slides[0].shortcuts[1].title).toBe('Ball won back');
 
   // Another "device": a fresh browser profile on a phone-sized screen.
-  const phone = await browser.newContext({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const phone = await newDevice({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   const p2 = await phone.newPage();
   await p2.goto(APP);
   const importOnce = async () => {

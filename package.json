@@ -1,6 +1,6 @@
 {
   "name": "tactical-analysis-app",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Prepare and present match analysis sessions from video clips. Offline-first PWA, all data stays on the device.",
   "type": "module",
@@ -8,10 +8,12 @@
     "dev": "node scripts/build.mjs --serve",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/build.mjs && node scripts/serve.mjs 4174",
-    "typecheck": "tsc --noEmit",
-    "test": "esbuild tests/zip.test.ts --bundle --platform=node --format=esm --outfile=dist-test/zip.test.mjs --sourcemap --log-level=warning && node dist-test/zip.test.mjs",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tests/ios",
+    "test": "esbuild tests/zip.test.ts tests/codec.test.ts --bundle --platform=node --format=esm --outdir=dist-test --out-extension:.js=.mjs --sourcemap --log-level=warning && node dist-test/zip.test.mjs && node dist-test/codec.test.mjs",
+    "test:e2e": "playwright test --project=chromium",
+    "test:e2e:webkit": "playwright test --project=webkit",
+    "test:e2e:ui": "playwright test --ui",
+    "test:selftest": "node scripts/build.mjs && node tests/ios/run.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.0",

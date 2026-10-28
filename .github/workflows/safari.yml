@@ -1,0 +1,48 @@
+name: Safari and iPhone
+
+# Runs on a GitHub Mac: the iPhone self-test in the iPhone Simulator's real Safari,
+# then the self-test and the full browser test suite in Playwright WebKit.
+# Results: the run's summary page, plus screenshots and a screen recording in the
+# "safari-results" artifact.
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  safari:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install webkit
+
+      - name: iPhone self-test (iPhone Simulator, Safari)
+        run: node tests/ios/run.mjs --driver simulator
+
+      - name: Self-test in Playwright WebKit
+        if: success() || failure()
+        run: node tests/ios/run.mjs --driver webkit
+
+      - name: Browser tests in WebKit
+        if: success() || failure()
+        run: npm run test:e2e:webkit
+        env:
+          CI: '1'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: safari-results
+          path: |
+            test-results/
+            !test-results/ios/*/profile/
+          retention-days: 7

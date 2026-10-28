@@ -13,3 +13,7 @@ Each was resized to 1600 px wide and encoded as a 2-second WebM.
 | `match-06.webm` | [DFC 5325 Evening match under the pines - youth teams battle on the floodlit pitch as a coral sunset lights the sky.jpg](https://commons.wikimedia.org/wiki/File:DFC_5325_Evening_match_under_the_pines_-_youth_teams_battle_on_the_floodlit_pitch_as_a_coral_sunset_lights_the_sky.jpg) | PattayaPatrol | CC BY-SA 4.0 |
 
 `counter-press.webm` and `build-up.webm` are synthetic test patterns generated with FFmpeg.
+
+`h264.mp4`, `hevc.mov` and `hevc-hdr.mov` are 3-second synthetic test patterns (FFmpeg `testsrc2`
+with a tone) in the formats iPhones record: H.264, HEVC tagged `hvc1` in a QuickTime `.mov`, and
+10-bit HEVC with HLG HDR (the iPhone default). Used by the format check and the iPhone self-test.

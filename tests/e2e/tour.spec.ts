@@ -1,6 +1,6 @@
 // "How it works" tour: opens by itself on a first visit, can be skipped, never
 // opens by itself again, and is always available from the home page.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test';
 import { APP } from './helpers';
 
 // Start as a brand-new visitor (the config marks the tour as seen for other tests).
@@ -99,7 +99,7 @@ for (const [w, h] of [[360, 740], [390, 844], [740, 360], [844, 390], [1024, 768
   test.describe(`${w}x${h}`, () => {
     test.use({ viewport: { width: w, height: h }, isMobile: w < 1000, hasTouch: true, deviceScaleFactor: 2 });
 
-    test('every step fits the screen; swipe moves between steps', async ({ page }, testInfo) => {
+    test('every step fits the screen; swipe moves between steps', async ({ page, browserName }, testInfo) => {
       await page.goto(APP);
       await expect(tour(page)).toBeVisible();
       const problems: string[] = [];
@@ -110,7 +110,8 @@ for (const [w, h] of [[360, 740], [390, 844], [740, 360], [844, 390], [1024, 768
       }
       expect(problems).toEqual([]);
 
-      // Swipe right goes back a step.
+      // Swipe right goes back a step. (Real touch input needs Chrome DevTools, so Chromium only.)
+      if (browserName !== 'chromium') return;
       const box = (await tour(page).boundingBox())!;
       const y = box.y + box.height / 2;
       const cdp = await page.context().newCDPSession(page);

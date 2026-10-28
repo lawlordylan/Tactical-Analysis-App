@@ -1,5 +1,5 @@
 // Drawing on shortcuts: prepare in the editor, show when presenting, export with the session.
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test';
 import { readFileSync } from 'node:fs';
 import { readZip } from '../../src/lib/zip';
 import { APP, COUNTER_PRESS, createSession, dragIn, ink, savedShapes, seek, waitForShapes, waitForVideo } from './helpers';
@@ -55,7 +55,7 @@ test('draw on a shortcut in the editor; it is saved, survives reload and shows w
   await expect.poll(() => ink(page, EDITOR_LAYER)).toBe(0);
 });
 
-test('present: saved drawing on shortcut jump, frame step keeps it, play clears it, live drawing', async ({ page }) => {
+test('present: saved drawing on shortcut jump, frame step keeps it, play clears it, live drawing', async ({ page, browserName }) => {
   await sessionWithDrawing(page);
   await page.getByRole('button', { name: 'Present', exact: true }).click();
   await expect(page.locator('.counter')).toHaveText('1 / 1');
@@ -82,12 +82,18 @@ test('present: saved drawing on shortcut jump, frame step keeps it, play clears 
   expect(await ink(page, STAGE_LAYER)).toBe(0);
   await page.keyboard.press('z');
   expect(await ink(page, STAGE_LAYER)).toBeGreaterThan(500);
+  const fullscreen = await page.evaluate(() => !!document.fullscreenElement);
   await page.keyboard.press('Escape');
+  if (fullscreen && browserName === 'webkit') {
+    // Safari spends the first Esc on leaving fullscreen and doesn't pass it to the page.
+    await page.waitForFunction(() => !document.fullscreenElement);
+    await page.keyboard.press('Escape');
+  }
   await expect(page.locator('.present')).toHaveCount(1);
   await expect(page.locator('.tool-rail .tool.on[data-tool]')).toHaveCount(0);
 });
 
-test('drawings travel with an exported session', async ({ page, browser }, testInfo) => {
+test('drawings travel with an exported session', async ({ page, newDevice }, testInfo) => {
   await page.addInitScript(() => delete (window as { showSaveFilePicker?: unknown }).showSaveFilePicker);
   await sessionWithDrawing(page);
   await page.getByRole('button', { name: 'Export' }).click();
@@ -99,7 +105,7 @@ test('drawings travel with an exported session', async ({ page, browser }, testI
   const meta = JSON.parse(await (await readZip(new Blob([readFileSync(file)]))).get('session.json')!.text());
   expect(meta.slides[0].shortcuts[0].drawing).toHaveLength(3);
 
-  const other = await browser.newContext();
+  const other = await newDevice();
   const p2 = await other.newPage();
   await p2.goto(APP);
   const chooser = p2.waitForEvent('filechooser');

@@ -55,7 +55,7 @@
     },
     {
       "label": "Unit tests",
-      "detail": "ZIP export-format round trip",
+      "detail": "ZIP export-format round trip and clip-format reader",
       "type": "shell",
       "command": "npm test",
       "group": "test",
@@ -78,6 +78,15 @@
       "command": "npm run test:e2e:ui",
       "isBackground": true,
       "presentation": { "reveal": "always", "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Clip self-test (Chrome)",
+      "detail": "Saves, reads back, plays, exports and re-imports test clips in Chrome (the iPhone Simulator on a Mac)",
+      "type": "shell",
+      "command": "npm run test:selftest",
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true },
       "problemMatcher": []
     },
     {

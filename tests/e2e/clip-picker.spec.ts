@@ -1,7 +1,7 @@
 // Clip picker in present mode: click the title (or press G) to see every clip and
 // jump to one; ‹ › beside the title step through them. A popover under the title
 // on larger screens, a bottom sheet on phones.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test';
 import { BUILD_UP, COUNTER_PRESS, createSession, waitForVideo } from './helpers';
 
 async function present(page: Page) {

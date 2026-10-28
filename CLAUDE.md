@@ -19,8 +19,10 @@ npm run dev        # http://localhost:5173, rebuilds on save into dist-dev/ (pri
 npm run build      # production build into dist/
 npm run preview    # production build served on http://localhost:4174
 npm run typecheck
-npm test           # ZIP export-format round-trip tests
-npm run test:e2e   # Playwright browser tests (first time: npx playwright install chromium)
+npm test           # ZIP export-format round trip + clip-format reader tests
+npm run test:e2e   # Playwright browser tests in Chromium (first time: npx playwright install chromium)
+npm run test:e2e:webkit   # same suite in WebKit (meaningful on a Mac; see below)
+npm run test:selftest     # clip save/playback self-test: Chrome locally, iPhone Simulator on a Mac
 ```
 
 VS Code tasks and launch configs are in `.vscode/` (F5 = dev server + debug in Chrome; see README "In VS Code"). Keep them in step with the npm scripts.
@@ -29,6 +31,7 @@ VS Code tasks and launch configs are in `.vscode/` (F5 = dev server + debug in C
 
 - Plain TypeScript + DOM, no UI framework. `h()` in `src/lib/dom.ts` builds elements; icons are inline SVG in the same file.
 - Only runtime dependency: `@mediapipe/tasks-vision` (auto-ring), code-split and loaded on first use. Keep it that way: no new runtime deps without a good reason.
+- The version in `package.json` (and `package-lock.json`) is shown on the home page and in playback error details; raise it when merging a release to `main`.
 - `package-lock.json` is committed and CI installs with `npm ci`: commit lockfile changes along with any dependency change.
 - esbuild via `scripts/build.mjs`, which also writes `index.html` and the service worker precache list (`src/sw.js` template).
 - Each screen (`src/views/*.ts`) is a `render…(root, …)` function returning a cleanup function. Hash router in `src/main.ts`.
@@ -36,7 +39,9 @@ VS Code tasks and launch configs are in `.vscode/` (F5 = dev server + debug in C
 - Drawings (`src/lib/draw.ts`) are stored in coordinates normalised to the video *picture* (not the element), so they line up on any screen. Circle `p` is `[cx, cy, rx, ry]`, plus a 5th value (beam height) for auto-ring floor rings; `g: true` marks auto-rings.
 - Auto-ring (`src/lib/detect.ts`): EfficientDet-Lite0 int8 person detector on a zoomed crop around the tap; for players taller than a quarter of the frame, PoseLandmarker lite finds their feet. Both run on CPU (the int8 model doesn't work on MediaPipe's GPU delegate). Models live in `public/detector/`; the WebAssembly runtime is copied from `node_modules` at build time.
 - Branding: club green `#016701` and white on a deep green-black base; colours are CSS variables at the top of `src/styles.css`. Crest images in `brand/` and `public/`.
-- Target browsers: Chrome/Edge desktop and Chrome on Android. iPhone/iPad Safari is not supported yet (fullscreen video hides overlays there).
+- Target browsers: Chrome/Edge desktop and Chrome on Android. iPhone/iPad Safari is in progress (fullscreen video hides overlays there).
+- iPhone/Safari testing without an iPhone: `.github/workflows/safari.yml` runs on `macos-26`: the self-test (`tests/ios/`) in the iPhone Simulator's Safari and in Playwright WebKit, then the e2e suite in WebKit. Read results from the run summary and the `safari-results` artifact. Playwright WebKit on Windows can't play video and its OPFS writes keep 0 bytes, so don't draw Safari conclusions from it.
+- Clips: `src/lib/codec.ts` reads container and codec from headers (no decoding). Never trust a storage write: `storeVideo` reads back and compares; the IndexedDB path stores 8 MB in-memory chunks, not the File or slice itself (WebKit bug). A clip that loads with `videoWidth` 0 is "sound only" and counts as unplayable.
 
 ## Checking work
 

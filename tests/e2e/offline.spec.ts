@@ -1,6 +1,6 @@
 // Offline: the installed app opens without a connection, and auto-ring (detector
 // and pose model) keeps working once it has been used online.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test';
 import { PHOTOS, tapPicture, waitForShapes, waitForVideo } from './helpers';
 
 test.describe.configure({ timeout: 180_000 });

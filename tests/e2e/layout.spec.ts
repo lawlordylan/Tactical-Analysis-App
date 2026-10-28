@@ -1,6 +1,6 @@
 // Present mode must fit every screen: no control outside its bar, nothing off screen,
 // and nothing on top of the clip. Small landscape phones have caught us out before.
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test';
 import { COUNTER_PRESS, createSession, waitForVideo } from './helpers';
 
 const SIZES: [number, number][] = [
