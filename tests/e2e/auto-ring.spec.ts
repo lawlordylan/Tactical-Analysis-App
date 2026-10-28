@@ -1,6 +1,6 @@
 // Auto-ring: tap a player and a ring snaps to them. Includes an accuracy check on
 // real match photos with hand-marked players, so detection tuning can't quietly regress.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test';
 import { PHOTOS, createSession, ink, tapPicture, waitForShapes, waitForVideo, type MatchPhoto } from './helpers';
 
 test.describe.configure({ timeout: 240_000 });

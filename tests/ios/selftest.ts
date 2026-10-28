@@ -93,15 +93,29 @@ async function playTest(blob: Blob, label: string): Promise<{ ok: boolean; detai
   const url = URL.createObjectURL(blob);
   try {
     const loaded = once(v, ['loadeddata', 'error']);
+    const meta = once(v, ['loadedmetadata']);
     v.src = url;
+    // iPhone Safari doesn't load a video's frames until it's asked to play, so start playing
+    // straight away (muted inline playback needs no tap), as a user pressing play would.
+    let playError = '';
+    const playing = v.play().catch((e: Error) => {
+      playError = `${e.name}: ${e.message}`;
+    });
     const ev = await withTimeout(loaded, 15_000, 'loading').catch((e) => (e as Error).message);
     if (ev !== 'loadeddata') {
       const err = v.error;
-      return { ok: false, detail: err ? `error ${err.code}${err.message ? `: ${err.message}` : ''}` : String(ev) };
+      const gotMeta = await Promise.race([meta.then(() => true), Promise.resolve(false)]);
+      return {
+        ok: false,
+        detail: err
+          ? `error ${err.code}${err.message ? `: ${err.message}` : ''}`
+          : `${ev}; readyState ${v.readyState}, metadata ${gotMeta ? `loaded (${v.videoWidth}×${v.videoHeight})` : 'not loaded'}${playError ? `, play() failed: ${playError}` : ''}`,
+      };
     }
     let played = 'played';
     try {
-      await withTimeout(v.play(), 5_000, 'play()');
+      await withTimeout(playing, 5_000, 'play()');
+      if (playError) throw new Error(playError);
       await withTimeout(new Promise<void>((res) => { const t = () => v.currentTime > 0.2 && (v.removeEventListener('timeupdate', t), res()); v.addEventListener('timeupdate', t); }), 5_000, 'playback');
       v.pause();
     } catch (e) {

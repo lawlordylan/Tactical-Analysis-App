@@ -128,6 +128,9 @@ writeFileSync(join(out, 'summary.md'), md);
 console.log(`\n${md}`);
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + '\n');
 if (process.env.GITHUB_ACTIONS) {
+  // The whole table as a notice too: notices can be read without signing in, unlike the log.
+  const enc = (s) => s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+  console.log(`::notice title=iPhone self-test (${driver}) results::${enc(md)}`);
   for (const c of (result.checks ?? []).filter((c) => !c.ok && !c.info)) console.log(`::error title=iPhone self-test (${driver})::${c.name}: ${c.detail ?? ''}`);
   if (result.crashed) console.log(`::error title=iPhone self-test (${driver})::${String(result.crashed).split('\n')[0]}`);
 }

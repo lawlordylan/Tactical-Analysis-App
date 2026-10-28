@@ -1,5 +1,5 @@
 // Drag to reorder clips: mouse on desktop, real touch events on a phone.
-import { expect, test, type CDPSession, type Page } from '@playwright/test';
+import { expect, test, type CDPSession, type Page } from './test';
 import { BUILD_UP, COUNTER_PRESS, PHOTOS, createSession, storedOrder } from './helpers';
 
 const CLIPS = [PHOTOS.wideGoalmouth.clip, PHOTOS.veryWide.clip, COUNTER_PRESS, BUILD_UP];

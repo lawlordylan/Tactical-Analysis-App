@@ -1,5 +1,5 @@
 // Drawing on shortcuts: prepare in the editor, show when presenting, export with the session.
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test';
 import { readFileSync } from 'node:fs';
 import { readZip } from '../../src/lib/zip';
 import { APP, COUNTER_PRESS, createSession, dragIn, ink, savedShapes, seek, waitForShapes, waitForVideo } from './helpers';
@@ -87,7 +87,7 @@ test('present: saved drawing on shortcut jump, frame step keeps it, play clears 
   await expect(page.locator('.tool-rail .tool.on[data-tool]')).toHaveCount(0);
 });
 
-test('drawings travel with an exported session', async ({ page, browser }, testInfo) => {
+test('drawings travel with an exported session', async ({ page, newDevice }, testInfo) => {
   await page.addInitScript(() => delete (window as { showSaveFilePicker?: unknown }).showSaveFilePicker);
   await sessionWithDrawing(page);
   await page.getByRole('button', { name: 'Export' }).click();
@@ -99,7 +99,7 @@ test('drawings travel with an exported session', async ({ page, browser }, testI
   const meta = JSON.parse(await (await readZip(new Blob([readFileSync(file)]))).get('session.json')!.text());
   expect(meta.slides[0].shortcuts[0].drawing).toHaveLength(3);
 
-  const other = await browser.newContext();
+  const other = await newDevice();
   const p2 = await other.newPage();
   await p2.goto(APP);
   const chooser = p2.waitForEvent('filechooser');

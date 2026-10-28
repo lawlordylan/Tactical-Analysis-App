@@ -1,6 +1,6 @@
 // "How it works" tour: opens by itself on a first visit, can be skipped, never
 // opens by itself again, and is always available from the home page.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test';
 import { APP } from './helpers';
 
 // Start as a brand-new visitor (the config marks the tour as seen for other tests).

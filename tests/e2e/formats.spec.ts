@@ -1,5 +1,5 @@
 // Clips the browser can't play (e.g. iPhone HEVC), and clips the browser doesn't save properly.
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test';
 import { APP, COUNTER_PRESS, clip, waitForVideo } from './helpers';
 
 const HEVC = clip('hevc-hdr.mov');
