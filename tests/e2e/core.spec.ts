@@ -23,6 +23,13 @@ async function preparedSession(page: Page, title = 'vs Rovers – 2nd half') {
   await page.waitForTimeout(600); // autosave debounce
 }
 
+test('the home page shows the app version', async ({ page }) => {
+  const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+  await page.goto(APP);
+  await expect(page.locator('.topbar .version-badge')).toHaveText(`v${version}`);
+  await expect(page.locator('.topbar .version-badge')).toBeVisible();
+});
+
 test('prepare a session: clips, title, comments, shortcuts, frame stepping, saved across reload', async ({ page }) => {
   await page.goto(APP);
   await expect(page.getByText('No sessions yet')).toBeVisible();

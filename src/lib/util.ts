@@ -75,3 +75,8 @@ export function isTyping(e: Event): boolean {
   const t = e.target as HTMLElement | null;
   return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
 }
+
+/** The app's version from package.json, set in index.html at build time. */
+export function appVersion(): string {
+  return (window as unknown as { APP_VERSION?: string }).APP_VERSION ?? '';
+}

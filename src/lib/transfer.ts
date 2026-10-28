@@ -5,7 +5,7 @@ import { sanitizeShapes } from './draw';
 import { deleteVideo, getVideo, requestPersistence, storeVideo } from './files';
 import { getSlides, listSessions } from './store';
 import type { Session, SessionManifest, Slide, VideoRef } from './types';
-import { slug, uid } from './util';
+import { appVersion, slug, uid } from './util';
 import { readZip, zipStream, type ZipInput } from './zip';
 
 export const FILE_EXT = '.analysis';
@@ -35,7 +35,7 @@ async function buildEntries(session: Session): Promise<ZipInput[]> {
     format: 'tactical-analysis-session',
     version: 1,
     exportedAt: new Date().toISOString(),
-    app: `tactical-analysis-app ${(window as unknown as { APP_VERSION?: string }).APP_VERSION ?? ''}`.trim(),
+    app: `tactical-analysis-app ${appVersion()}`.trim(),
     session: { title: session.title, createdAt: session.createdAt, updatedAt: session.updatedAt },
     slides: [],
   };

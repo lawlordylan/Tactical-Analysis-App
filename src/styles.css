@@ -95,6 +95,7 @@ textarea.input { resize: vertical; min-height: 96px; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
 .brand-name { font: 800 18px var(--display); letter-spacing: -0.01em; white-space: nowrap; }
 .brand-sub { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
+.version-badge { display: inline-block; margin-left: 8px; padding: 1px 6px; border: 1px solid rgba(255, 255, 255, .22); border-radius: 999px; background: rgba(255, 255, 255, .06); font: 600 10.5px/1.4 var(--mono); letter-spacing: 0; text-transform: none; color: var(--text); vertical-align: 1px; user-select: text; }
 .title-input {
   flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid transparent; border-radius: 8px;
   background: transparent; color: var(--text); font: 700 17px var(--font);

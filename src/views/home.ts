@@ -4,7 +4,7 @@ import { h, icon, iconBtn } from '../lib/dom';
 import { storageInfo } from '../lib/files';
 import { createSession, deleteSession, getSlide, listSessions } from '../lib/store';
 import type { Session } from '../lib/types';
-import { fmtBytes, fmtDate } from '../lib/util';
+import { appVersion, fmtBytes, fmtDate } from '../lib/util';
 import { CREST, go, pickAndImport, runExport, startPresenting } from './actions';
 import { openTour, tourSeen } from './tour';
 
@@ -32,7 +32,12 @@ export async function renderHome(root: HTMLElement): Promise<() => void> {
         'div',
         { class: 'brand' },
         h('img', { class: 'brand-crest', src: CREST, alt: '' }),
-        h('span', { class: 'brand-text' }, h('span', { class: 'brand-name' }, 'Killeshin FC'), h('span', { class: 'brand-sub' }, 'Match Analysis')),
+        h(
+          'span',
+          { class: 'brand-text' },
+          h('span', { class: 'brand-name' }, 'Killeshin FC'),
+          h('span', { class: 'brand-sub' }, 'Match Analysis', h('span', { class: 'version-badge', title: 'App version' }, `v${appVersion()}`)),
+        ),
       ),
       h(
         'div',

@@ -2,7 +2,7 @@
 // why a clip won't play.
 import { describeFormat, isHevc, readClipFormat } from './codec';
 import type { VideoRef } from './types';
-import { fmtBytes } from './util';
+import { appVersion, fmtBytes } from './util';
 
 export interface ClipInfo {
   duration: number;
@@ -188,7 +188,7 @@ export async function playbackProblem(video: HTMLVideoElement, blob: Blob | null
     format && describeFormat(format),
     ref && `${fmtBytes(ref.size)} in ${ref.storage === 'opfs' ? 'file storage' : 'the database'}`,
     blob && ref && blob.size !== ref.size && `copy is ${fmtBytes(blob.size)}`,
-    browserLabel(),
+    `${browserLabel()} · app v${appVersion()}`,
   ]
     .filter(Boolean)
     .join(' · ');

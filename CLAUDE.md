@@ -31,6 +31,7 @@ VS Code tasks and launch configs are in `.vscode/` (F5 = dev server + debug in C
 
 - Plain TypeScript + DOM, no UI framework. `h()` in `src/lib/dom.ts` builds elements; icons are inline SVG in the same file.
 - Only runtime dependency: `@mediapipe/tasks-vision` (auto-ring), code-split and loaded on first use. Keep it that way: no new runtime deps without a good reason.
+- The version in `package.json` (and `package-lock.json`) is shown on the home page and in playback error details; raise it when merging a release to `main`.
 - `package-lock.json` is committed and CI installs with `npm ci`: commit lockfile changes along with any dependency change.
 - esbuild via `scripts/build.mjs`, which also writes `index.html` and the service worker precache list (`src/sw.js` template).
 - Each screen (`src/views/*.ts`) is a `render…(root, …)` function returning a cleanup function. Hash router in `src/main.ts`.
