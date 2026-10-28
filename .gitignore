@@ -4,5 +4,6 @@ dist-dev/
 .DS_Store
 *.log
 dist-test/
+dist-selftest/
 test-results/
 playwright-report/

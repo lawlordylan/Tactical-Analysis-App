@@ -21,7 +21,7 @@ Working now:
 - Export a session to one `.analysis` file, import it on another device
 - Installable and works offline (PWA)
 
-Target browsers for the POC: Chrome/Edge on desktop and Chrome on Android. iPhone/iPad (Safari) is not supported yet.
+Target browsers for the POC: Chrome/Edge on desktop and Chrome on Android. iPhone/iPad (Safari) is being worked on: clip saving and playback are tested in the iPhone Simulator on every push (see [Safari and iPhone tests](#safari-and-iphone-tests)), but present mode can't go fullscreen on an iPhone yet.
 
 ### Roadmap
 
@@ -61,7 +61,7 @@ Click or tap the clip to play / pause. With a drawing tool selected, the clip is
 - **Auto-ring** (the first tool): tap a player and the app finds them and draws the ring for you: a ring at the feet for players in a wide shot, an oval around the whole player in a close-up. If nobody is found where you tapped, you get a normal ring there instead. Dragging with this tool still sizes a ring by hand. Its highlight is a ring painted on the pitch at the player's feet (bright at the front, fading at the back) with a soft beam of light rising through the player. It draws itself on: the ring sweeps round from the front, then the beam rises, both when it's placed and when you jump to the shortcut while presenting. Close-up players get the floor ring too: the app finds their feet with a pose model. Only when a player's feet are out of shot or hidden behind other players does it fall back to a crisp oval around them. The beam is drawn on its own layer, screen-blended over the video, so it brightens the player like real light. Otherwise they're ordinary rings: undo, colour, dashed and saving all work the same.
 - Drawings are stored relative to the video picture, so they line up with the same players on any screen, in any orientation, and after export / import.
 
-**Clip format:** H.264 MP4 plays everywhere. iPhone recordings (HEVC/.mov) may not play in Chrome on Windows; re-export them as H.264 MP4.
+**Clip format:** H.264 MP4 plays everywhere. iPhone recordings are HEVC (H.265) by default, which Chrome on many Windows PCs and Android phones can't play (sometimes it plays the sound with a black picture). The app checks each clip as it's added and says if it won't play on that device; the clip is kept, since it may play on the device you present from. To fix it, re-export the clip as H.264 MP4, or set the iPhone to *Settings → Camera → Formats → Most Compatible* before filming. If a clip won't play, the message under it gives the error code, the clip's format and size, where it's stored and the browser: a screenshot of it is enough to work out what's wrong.
 
 **Frame rate** is detected automatically the first time a clip plays (25 fps is assumed until then).
 
@@ -75,8 +75,9 @@ npm run dev        # http://localhost:5173 with rebuild on save (built into dist
 npm run build      # production build into dist/
 npm run preview    # production build served on http://localhost:4174
 npm run typecheck
-npm test           # export-format round-trip tests
+npm test           # export-format round trip and clip-format reader
 npm run test:e2e   # browser tests (first time: npx playwright install chromium)
+npm run test:selftest   # clip saving/playback self-test in Chrome (in the iPhone Simulator on a Mac)
 ```
 
 Work happens on the `develop` branch; `main` is what's live.
@@ -88,7 +89,7 @@ The `.vscode/` folder has everything wired up (needs [Node.js](https://nodejs.or
 - **First time:** *Terminal → Run Task… → First-time setup* (npm install + the test browser), and accept the suggested **Playwright Test** extension.
 - **F5** starts the dev server and opens the app in Chrome attached to VS Code: breakpoints in `src/*.ts` work and console output goes to the Debug Console. Pick *App in Edge* or *Production build in Chrome* from the Run and Debug dropdown for the others. Press Ctrl+Shift+M in the browser's DevTools for phone sizes.
 - **Ctrl+Shift+B** starts just the dev server; build errors show in the Problems panel. The terminal prints the address to open on a phone.
-- **Terminal → Run Task…** has *Typecheck*, *Unit tests*, *Browser tests*, *Browser tests (interactive UI)* and *Check everything* (all three, before merging to `main`).
+- **Terminal → Run Task…** has *Typecheck*, *Unit tests*, *Browser tests*, *Browser tests (interactive UI)*, *Clip self-test (Chrome)* and *Check everything* (typecheck, unit and browser tests, before merging to `main`).
 - The **Testing** sidebar (Playwright extension) runs or debugs a single browser test.
 
 The dev server builds into `dist-dev/` and the tests into `dist/`, so both can run at once.
@@ -97,7 +98,7 @@ On Windows, tasks run in Command Prompt. If you type `npm` in a PowerShell termi
 
 ### Browser tests
 
-`npm run test:e2e` builds the app, serves it on port 4173 and runs `tests/e2e/` in Chromium (about 2 minutes). `npm run test:e2e:ui` opens Playwright's interactive runner. Screenshots, traces and an HTML report land in `test-results/`.
+`npm run test:e2e` builds the app, serves it on port 4173 and runs `tests/e2e/` in Chromium (about a minute). `npm run test:e2e:ui` opens Playwright's interactive runner. Screenshots, traces and an HTML report land in `test-results/`.
 
 | Spec | What it checks |
 | --- | --- |
@@ -109,8 +110,21 @@ On Windows, tasks run in Command Prompt. If you type `npm` in a PowerShell termi
 | `reorder` | Drag to reorder with a mouse, and with real touch events on a phone (handle, swipe-scrolls, press-and-hold with auto-scroll) |
 | `auto-ring` | Auto-ring behaviour, plus **accuracy on 38 hand-marked players** in five real match photos: the right player is ringed and floor rings land near the feet. Fails if detection tuning regresses |
 | `offline` | With the service worker: the app and auto-ring (detector and pose model) keep working offline after first use |
+| `formats` | An iPhone HEVC clip in a browser that can't play it: warned when added, kept, and the player and present mode say why. File storage that reports success but keeps nothing: the app falls back to IndexedDB and the clip still plays after reload |
 
 Test clips are in `tests/e2e/fixtures/` (see its `CREDITS.md`). The same suite runs on GitHub for every push to `develop` and every pull request to `main` (`.github/workflows/tests.yml`).
+
+### Safari and iPhone tests
+
+No iPhone needed: `.github/workflows/safari.yml` runs on a GitHub Mac for every push to `develop` and pull request to `main`:
+
+1. **iPhone self-test in the iPhone Simulator** (real iPhone Safari, newest iOS on the runner). `tests/ios/run.mjs` serves the app plus a self-test page (`tests/ios/selftest.ts`) and opens it in the Simulator. The page runs the app's own code on four test clips (H.264, iPhone HEVC, iPhone 10-bit HDR HEVC, WebM): add each clip, check the saved copy byte for byte, play it and check a frame is drawn, export and import the session, then reload and check everything again. It posts a report back; the runner then screenshots the app's editor and present mode, and records the screen throughout.
+2. The same self-test in Playwright WebKit.
+3. The full browser test suite in WebKit (`npm run test:e2e:webkit`).
+
+Results are on the run's summary page (a table of checks); screenshots and the screen recording are in its **safari-results** artifact. Saving, H.264 playback, export/import and the reload must pass; HEVC and WebM playback are reported only.
+
+Locally, `npm run test:selftest` runs the self-test in Chrome (or the Simulator on a Mac); `node tests/ios/run.mjs --driver webkit` uses Playwright WebKit. WebKit on Windows can't play any video and its file storage keeps nothing, so there it only checks the database fallback; use the Mac run for anything about Safari.
 
 To try it on a phone during development, open `http://<your-computer-ip>:5173` on the same Wi-Fi. Over plain http the browser blocks some storage APIs, so videos are stored in IndexedDB instead of the private file system. Everything still works; the deployed https version is the real thing.
 
@@ -179,7 +193,8 @@ To change colours, edit the variables at the top of `src/styles.css`.
 ### Storage
 
 - **Metadata** (sessions, slides, shortcuts, thumbnails) lives in IndexedDB.
-- **Video files** live in the browser's Origin Private File System, written as a stream so large clips never load fully into memory. Where that isn't available the app falls back to IndexedDB.
+- **Video files** live in the browser's Origin Private File System, written as a stream so large clips never load fully into memory. Where that isn't available the app falls back to IndexedDB, copying the clip in 8 MB pieces (storing the picked file itself lets WebKit keep a link to it rather than a copy, which can read back wrongly later).
+- Every clip is **read back and checked** after saving (size and the bytes at both ends). If the file system says it saved a clip but didn't keep it (seen in WebKit), the app switches to IndexedDB; if that fails too, it says so instead of keeping a broken clip.
 - The app asks the browser to make storage **persistent** so it isn't cleared automatically when space runs low.
 
 ### The `.analysis` file

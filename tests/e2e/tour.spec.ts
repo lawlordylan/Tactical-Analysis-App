@@ -99,7 +99,7 @@ for (const [w, h] of [[360, 740], [390, 844], [740, 360], [844, 390], [1024, 768
   test.describe(`${w}x${h}`, () => {
     test.use({ viewport: { width: w, height: h }, isMobile: w < 1000, hasTouch: true, deviceScaleFactor: 2 });
 
-    test('every step fits the screen; swipe moves between steps', async ({ page }, testInfo) => {
+    test('every step fits the screen; swipe moves between steps', async ({ page, browserName }, testInfo) => {
       await page.goto(APP);
       await expect(tour(page)).toBeVisible();
       const problems: string[] = [];
@@ -110,7 +110,8 @@ for (const [w, h] of [[360, 740], [390, 844], [740, 360], [844, 390], [1024, 768
       }
       expect(problems).toEqual([]);
 
-      // Swipe right goes back a step.
+      // Swipe right goes back a step. (Real touch input needs Chrome DevTools, so Chromium only.)
+      if (browserName !== 'chromium') return;
       const box = (await tour(page).boundingBox())!;
       const y = box.y + box.height / 2;
       const cdp = await page.context().newCDPSession(page);

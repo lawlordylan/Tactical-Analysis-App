@@ -1,9 +1,15 @@
-// Video helpers: read duration + grab a thumbnail, and detect frame rate.
+// Video helpers: read duration + grab a thumbnail, detect frame rate, and explain
+// why a clip won't play.
+import { describeFormat, isHevc, readClipFormat } from './codec';
+import type { VideoRef } from './types';
+import { fmtBytes } from './util';
 
 export interface ClipInfo {
   duration: number;
   thumb?: string;
   playable: boolean;
+  /** The browser reported it can't play this clip (as opposed to just being slow to load it). */
+  failed?: boolean;
 }
 
 /** Load a clip off-screen, read its duration and capture a small JPEG thumbnail. */
@@ -25,8 +31,11 @@ export function probeClip(blob: Blob): Promise<ClipInfo> {
       resolve(info);
     };
     const timer = setTimeout(() => finish({ duration: isFinite(v.duration) ? v.duration : 0, playable: v.readyState > 0 }), 8000);
-    v.onerror = () => finish({ duration: 0, playable: false });
+    v.onerror = () => finish({ duration: 0, playable: false, failed: true });
     v.onloadedmetadata = () => {
+      // Loaded but no picture: the browser can't decode the video track and would play the
+      // sound only (e.g. Chrome without HEVC support).
+      if (!v.videoWidth) return finish({ duration: isFinite(v.duration) ? v.duration : 0, playable: false, failed: true });
       v.currentTime = Math.min(1, (v.duration || 0) / 3);
     };
     v.onseeked = () => {
@@ -92,4 +101,70 @@ export function stepFrame(video: HTMLVideoElement, dir: 1 | -1, fps = 25) {
   const frame = Math.round(video.currentTime * fps);
   const target = (frame + dir) / fps + 0.25 / fps;
   video.currentTime = Math.min(Math.max(0, target), Math.max(0, (video.duration || 0) - 0.001));
+}
+
+const MEDIA_ERRORS = ['', 'aborted', 'network error', "couldn't decode", 'format not supported'];
+
+/** e.g. "Safari 18.1 on iPhone (iOS 18.1)", "Chrome 130 on Windows". */
+export function browserLabel(ua = navigator.userAgent): string {
+  const v = (re: RegExp) => ua.match(re)?.[1];
+  const browsers: [RegExp, string][] = [
+    [/Edg(?:e|A|iOS)?\/([\d]+)/, 'Edge'],
+    [/CriOS\/([\d]+)/, 'Chrome'],
+    [/FxiOS\/([\d]+)/, 'Firefox'],
+    [/SamsungBrowser\/([\d]+)/, 'Samsung Internet'],
+    [/Firefox\/([\d]+)/, 'Firefox'],
+    [/Chrome\/([\d]+)/, 'Chrome'],
+    [/Version\/([\d.]+).*Safari/, 'Safari'],
+  ];
+  const hit = browsers.find(([re]) => re.test(ua));
+  const browser = hit ? `${hit[1]} ${v(hit[0])}` : 'Unknown browser';
+  const ios = v(/ OS (\d+(?:_\d+)*) like Mac/)?.replace(/_/g, '.');
+  const device = /iPhone|iPod/.test(ua)
+    ? `iPhone (iOS ${ios ?? '?'})`
+    : /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+      ? `iPad${ios ? ` (iPadOS ${ios})` : ''}`
+      : /Android/.test(ua)
+        ? `Android ${v(/Android ([\d.]+)/) ?? ''}`.trim()
+        : /Windows/.test(ua)
+          ? 'Windows'
+          : /Mac OS X/.test(ua)
+            ? 'Mac'
+            : /Linux/.test(ua)
+              ? 'Linux'
+              : 'unknown device';
+  return `${browser} on ${device}`;
+}
+
+/** Loaded, but with no picture: the browser can't decode the video track and plays only the sound. */
+export const isSoundOnly = (video: HTMLVideoElement) => !video.error && video.readyState >= 1 && !video.videoWidth;
+
+export const HEVC_ADVICE =
+  'Re-export it as H.264 MP4 to play it everywhere. To film in H.264 on an iPhone: Settings → Camera → Formats → Most Compatible.';
+
+/**
+ * Why a clip won't play: a message for the user, plus a details line (error code,
+ * format, size, storage, browser) to screenshot when asking for help.
+ */
+export async function playbackProblem(video: HTMLVideoElement, blob: Blob | null, ref: VideoRef | null): Promise<{ message: string; details: string }> {
+  const format = blob ? await readClipFormat(blob) : null;
+  const err = video.error;
+  const message =
+    format && isHevc(format)
+      ? `This browser can't play HEVC (H.265) video, the format iPhones record in by default. ${HEVC_ADVICE}`
+      : "This browser can't play this clip. Re-export it as H.264 MP4 and add it again.";
+  const details = [
+    err
+      ? `Error ${err.code}${MEDIA_ERRORS[err.code] ? ` (${MEDIA_ERRORS[err.code]})` : ''}${err.message ? `: ${err.message}` : ''}`
+      : isSoundOnly(video)
+        ? "Sound only: the picture can't be decoded"
+        : 'No error code',
+    format && describeFormat(format),
+    ref && `${fmtBytes(ref.size)} in ${ref.storage === 'opfs' ? 'file storage' : 'the database'}`,
+    blob && ref && blob.size !== ref.size && `copy is ${fmtBytes(blob.size)}`,
+    browserLabel(),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return { message, details };
 }

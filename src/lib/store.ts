@@ -1,6 +1,7 @@
 // Session and slide operations on top of IndexedDB + video storage.
 import * as db from './db';
 import { deleteVideo, requestPersistence, storeVideo, type Progress } from './files';
+import { readClipFormat, type ClipFormat } from './codec';
 import { probeClip } from './media';
 import type { Session, Slide } from './types';
 import { stripExt, uid } from './util';
@@ -77,15 +78,18 @@ export async function addClips(
   session: Session,
   files: File[],
   onProgress?: (fileIndex: number, done: number, total: number) => void,
-): Promise<Slide[]> {
+): Promise<{ slides: Slide[]; unplayable: { name: string; format: ClipFormat }[] }> {
   await requestPersistence();
   const created: Slide[] = [];
+  const unplayable: { name: string; format: ClipFormat }[] = [];
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const id = uid();
     const progress: Progress = (d, t) => onProgress?.(i, d, t);
     const video = await storeVideo(id, file, { name: file.name, type: file.type }, progress);
     const info = await probeClip(file);
+    // Kept anyway: it may play on the device it's presented from (e.g. HEVC on an iPhone).
+    if (info.failed) unplayable.push({ name: file.name, format: await readClipFormat(file) });
     const now = Date.now();
     const slide: Slide = {
       id: uid(),
@@ -103,5 +107,5 @@ export async function addClips(
     await saveSlide(slide, session);
     created.push(slide);
   }
-  return created;
+  return { slides: created, unplayable };
 }
