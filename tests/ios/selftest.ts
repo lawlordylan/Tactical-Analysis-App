@@ -166,6 +166,7 @@ async function phase1() {
       const { slides, unplayable } = await addClips(session, [file]);
       const s = slides[0];
       check(`add ${c.name}`, !!s?.video, `${Math.round(performance.now() - t0)} ms, stored in ${s?.video?.storage}, duration ${s?.duration ? `${s.duration.toFixed(1)} s` : 'unknown'}, thumbnail ${s?.thumb ? 'yes' : 'no'}${unplayable.length ? ', warned "won\'t play here"' : ''}`);
+      check(`thumbnail and duration for ${c.name}`, !!s.thumb && !!s.duration, `${Math.round(performance.now() - t0)} ms to add`, !c.required);
       const stored = await getVideo(s.video!);
       check(`saved copy of ${c.name} matches`, await sameBytes(stored, file), `${stored.size} of ${file.size} bytes`);
       check(`format of ${c.name}`, true, describeFormat(await readClipFormat(stored)), true);

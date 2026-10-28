@@ -24,7 +24,7 @@
 // Works with touch, mouse, keyboard and presentation clickers (PageUp/PageDown).
 import { h, icon, iconBtn } from '../lib/dom';
 import { getVideo } from '../lib/files';
-import { isSoundOnly, playbackProblem, stepFrame, watchFps } from '../lib/media';
+import { confirmSoundOnly, playbackProblem, stepFrame, watchFps } from '../lib/media';
 import { getSession, getSlides, saveSlide } from '../lib/store';
 import type { Slide } from '../lib/types';
 import { fmtTime, isTyping } from '../lib/util';
@@ -428,7 +428,9 @@ export async function renderPresent(root: HTMLElement, sessionId: string, startI
   };
   video.addEventListener('error', showProblem);
   video.addEventListener('loadedmetadata', () => {
-    if (isSoundOnly(video)) showProblem();
+    confirmSoundOnly(video).then((soundOnly) => {
+      if (soundOnly) showProblem();
+    });
   });
   // Smooth scrubber and shortcut highlight while playing.
   let raf = 0;

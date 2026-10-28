@@ -32,13 +32,14 @@ export function probeClip(blob: Blob): Promise<ClipInfo> {
     };
     const timer = setTimeout(() => finish({ duration: isFinite(v.duration) ? v.duration : 0, playable: v.readyState > 0 }), 8000);
     v.onerror = () => finish({ duration: 0, playable: false, failed: true });
-    v.onloadedmetadata = () => {
+    v.onloadedmetadata = async () => {
       // Loaded but no picture: the browser can't decode the video track and would play the
       // sound only (e.g. Chrome without HEVC support).
-      if (!v.videoWidth) return finish({ duration: isFinite(v.duration) ? v.duration : 0, playable: false, failed: true });
+      if (await confirmSoundOnly(v)) return finish({ duration: isFinite(v.duration) ? v.duration : 0, playable: false, failed: true });
       v.currentTime = Math.min(1, (v.duration || 0) / 3);
     };
     v.onseeked = () => {
+      v.pause();
       let thumb: string | undefined;
       try {
         const w = 320;
@@ -54,6 +55,28 @@ export function probeClip(blob: Blob): Promise<ClipInfo> {
       finish({ duration: v.duration, thumb, playable: true });
     };
     v.src = url;
+    // iPhone Safari doesn't load a video until it's asked to play (muted inline playback needs
+    // no tap). Without this, every clip waited out the 8 s timeout there and got no thumbnail.
+    v.play().catch(() => {});
+  });
+}
+
+/**
+ * True if the video loaded but still has no picture size after a short wait (some browsers
+ * report the size just after the metadata): the browser can only play its sound.
+ */
+export function confirmSoundOnly(video: HTMLVideoElement, ms = 1500): Promise<boolean> {
+  if (!isSoundOnly(video)) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      video.removeEventListener('resize', done);
+      video.removeEventListener('loadeddata', done);
+      resolve(isSoundOnly(video));
+    };
+    const timer = setTimeout(done, ms);
+    video.addEventListener('resize', done);
+    video.addEventListener('loadeddata', done);
   });
 }
 
@@ -119,7 +142,10 @@ export function browserLabel(ua = navigator.userAgent): string {
   ];
   const hit = browsers.find(([re]) => re.test(ua));
   const browser = hit ? `${hit[1]} ${v(hit[0])}` : 'Unknown browser';
-  const ios = v(/ OS (\d+(?:_\d+)*) like Mac/)?.replace(/_/g, '.');
+  // iOS 26 Safari reports an old, frozen iOS version (18.x) in the OS part of its user agent;
+  // its Safari version matches the iOS version, so prefer that when it's Safari itself.
+  const safari = hit?.[1] === 'Safari' ? v(/Version\/([\d.]+)/) : undefined;
+  const ios = safari ?? v(/ OS (\d+(?:_\d+)*) like Mac/)?.replace(/_/g, '.');
   const device = /iPhone|iPod/.test(ua)
     ? `iPhone (iOS ${ios ?? '?'})`
     : /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)

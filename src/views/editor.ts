@@ -3,7 +3,7 @@ import { alertDialog, confirmDialog, progressDialog, toast } from '../lib/dialog
 import { h, icon, iconBtn } from '../lib/dom';
 import { getVideo } from '../lib/files';
 import { describeFormat, isHevc, type ClipFormat } from '../lib/codec';
-import { HEVC_ADVICE, isSoundOnly, playbackProblem, stepFrame, watchFps } from '../lib/media';
+import { HEVC_ADVICE, confirmSoundOnly, playbackProblem, stepFrame, watchFps } from '../lib/media';
 import { addClips, deleteSlide, getSession, getSlides, moveSlide, saveSession, saveSlide } from '../lib/store';
 import { Annotator } from '../lib/draw';
 import { sortable } from '../lib/sortable';
@@ -253,7 +253,9 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
     };
     video.addEventListener('error', showProblem);
     video.addEventListener('loadedmetadata', () => {
-      if (isSoundOnly(video)) showProblem();
+      confirmSoundOnly(video).then((soundOnly) => {
+        if (soundOnly) showProblem();
+      });
       if (isFinite(video.duration) && Math.abs((slide.duration ?? 0) - video.duration) > 0.05) {
         slide.duration = video.duration;
         save();

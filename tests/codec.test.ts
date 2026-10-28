@@ -2,6 +2,7 @@
 // Run: npm test
 import { readFileSync } from 'node:fs';
 import { describeFormat, readClipFormat } from '../src/lib/codec';
+import { browserLabel } from '../src/lib/media';
 
 const cases: [string, string][] = [
   ['h264.mp4', 'H.264 in a .mp4 file'],
@@ -22,3 +23,17 @@ for (const [name, want] of cases) {
 const junk = describeFormat(await readClipFormat(new Blob([new Uint8Array(1000)])));
 if (junk !== 'unknown codec') throw new Error(`junk file: got "${junk}"`);
 console.log('ok unreadable file: unknown codec');
+
+// Browser labels in playback error details.
+const uas: [string, string][] = [
+  // iOS 26 Safari freezes the OS version in its user agent; the Safari version is the real one.
+  ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1', 'Safari 26.5 on iPhone (iOS 26.5)'],
+  ['Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0.6723.90 Mobile/15E148 Safari/604.1', 'Chrome 130 on iPhone (iOS 17.4)'],
+  ['Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36', 'Chrome 130 on Android 14'],
+  ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0', 'Edge 130 on Windows'],
+];
+for (const [ua, want] of uas) {
+  const got = browserLabel(ua);
+  if (got !== want) throw new Error(`browserLabel: expected "${want}", got "${got}"`);
+  console.log(`ok ${want}`);
+}
