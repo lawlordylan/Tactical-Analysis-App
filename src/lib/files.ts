@@ -105,6 +105,86 @@ export async function storeVideo(id: string, blob: Blob, meta: { name: string; t
   return { ...ref, storage: 'idb' };
 }
 
+/**
+ * Saves a clip as it downloads (share links), without holding it in memory. `open` starts the
+ * download; it's called again if the clip has to be redone in IndexedDB.
+ */
+export async function storeVideoStream(
+  id: string,
+  open: () => Promise<ReadableStream<Uint8Array>>,
+  meta: { name: string; type: string; size: number },
+  onProgress?: Progress,
+): Promise<VideoRef> {
+  const ref: Omit<VideoRef, 'storage'> = { id, name: meta.name, type: meta.type || 'video/mp4', size: meta.size };
+  const short = (got: number) =>
+    new Error(`The download stopped early (${fmtBytes(got)} of ${fmtBytes(meta.size)}). Check your connection and try again.`);
+  let received = 0;
+  const tally = () =>
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, ctrl) {
+        received += chunk.byteLength;
+        ctrl.enqueue(chunk);
+      },
+    });
+
+  const dir = fileWritesWork ? await videosDir() : null;
+  if (dir) {
+    // Start the download before creating the file: a file left open by a failed start can't be removed.
+    const body = await open();
+    const fh = await dir.getFileHandle(id, { create: true });
+    const w = await fh.createWritable();
+    try {
+      await body.pipeThrough(tally()).pipeThrough(counter(meta.size, onProgress)).pipeTo(w);
+    } catch (e) {
+      await dir.removeEntry(id).catch(() => {});
+      throw friendlyError(e);
+    }
+    if (received !== meta.size) {
+      await dir.removeEntry(id).catch(() => {});
+      throw short(received);
+    }
+    if ((await fh.getFile()).size === meta.size) return { ...ref, storage: 'opfs' };
+    console.warn('The file system did not keep the clip; using IndexedDB instead.');
+    fileWritesWork = false;
+    await dir.removeEntry(id).catch(() => {});
+  }
+
+  // IndexedDB, in 8 MB in-memory pieces (see storeVideo).
+  received = 0;
+  let pieces = 0;
+  let buf: Uint8Array[] = [];
+  let bufLen = 0;
+  const flush = async () => {
+    if (!bufLen) return;
+    await db.put('blobs', { id: chunkId(id, pieces), blob: new Blob(buf as BlobPart[]) });
+    pieces++;
+    buf = [];
+    bufLen = 0;
+  };
+  try {
+    const reader = (await open()).pipeThrough(tally()).pipeThrough(counter(meta.size, onProgress)).getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf.push(value);
+      bufLen += value.byteLength;
+      if (bufLen >= CHUNK) await flush();
+    }
+    await flush();
+    if (received !== meta.size) throw short(received);
+    await db.put('blobs', { id, chunks: pieces, size: received });
+  } catch (e) {
+    await deleteChunks(id, pieces + 1);
+    throw friendlyError(e);
+  }
+  const back = await getVideo({ ...ref, storage: 'idb' }).catch(() => null);
+  if (!back || back.size !== meta.size) {
+    await deleteChunks(id, pieces);
+    throw new Error(`This browser didn't save the clip correctly (kept ${back ? fmtBytes(back.size) : 'nothing'} of ${fmtBytes(meta.size)}).`);
+  }
+  return { ...ref, storage: 'idb' };
+}
+
 const CHUNK = 8 * 1024 * 1024;
 const chunkId = (id: string, i: number) => `${id}/${i}`;
 

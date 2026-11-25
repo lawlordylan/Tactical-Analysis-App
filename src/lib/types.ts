@@ -60,6 +60,34 @@ export interface Session {
   slideIds: string[];
   createdAt: number;
   updatedAt: number;
+  /** Set when this session came from (or is shared as) a share link. */
+  shared?: SharedInfo;
+}
+
+export interface SharedInfo {
+  /** Drive file id of the shared session.json: the id in the link (#/s/<link>). */
+  link: string;
+  /** 'in': downloaded from someone's link. 'out': this device shares it. */
+  role: 'in' | 'out';
+  /** The shared copy's revision this session matches. */
+  revision: number;
+  /** When that revision was shared (ISO date). */
+  sharedAt: string;
+}
+
+/** session.json of a shared session in Google Drive: like an export, with clips as Drive files. */
+export interface SharedManifest {
+  format: 'tactical-analysis-share';
+  version: 1;
+  /** Goes up by one each time the coach updates the shared copy. */
+  revision: number;
+  sharedAt: string;
+  app: string;
+  session: { title: string; createdAt: number; updatedAt: number };
+  slides: (Omit<SessionManifest['slides'][number], 'video'> & {
+    /** id: the clip's Drive file id. */
+    video: { id: string; name: string; type: string; size: number } | null;
+  })[];
 }
 
 /** session.json inside an exported .analysis file. */

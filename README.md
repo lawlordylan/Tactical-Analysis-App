@@ -61,6 +61,13 @@ Click or tap the clip to play / pause. With a drawing tool selected, the clip is
 - **Auto-ring** (the first tool): tap a player and the app finds them and draws the ring for you: a ring at the feet for players in a wide shot, an oval around the whole player in a close-up. If nobody is found where you tapped, you get a normal ring there instead. Dragging with this tool still sizes a ring by hand. Its highlight is a ring painted on the pitch at the player's feet (bright at the front, fading at the back) with a soft beam of light rising through the player. It draws itself on: the ring sweeps round from the front, then the beam rises, both when it's placed and when you jump to the shortcut while presenting. Close-up players get the floor ring too: the app finds their feet with a pose model. Only when a player's feet are out of shot or hidden behind other players does it fall back to a crisp oval around them. The beam is drawn on its own layer, screen-blended over the video, so it brightens the player like real light. Otherwise they're ordinary rings: undo, colour, dashed and saving all work the same.
 - Drawings are stored relative to the video picture, so they line up with the same players on any screen, in any orientation, and after export / import.
 
+### Share links
+
+A coach can share a session as a link; anyone who opens it can download their own copy into the app, with no sign-in. The session's clips live in the club's Google Drive (one-off setup: [docs/google-drive-setup.md](docs/google-drive-setup.md)). Links don't expire; the coach can update the shared copy or stop sharing.
+
+- **Opening a link** (`#/s/<id>`, done): shows the session's name, clips, shortcuts and size, then downloads it straight into the device's storage, one clip at a time, with progress. Clips this device can't play are flagged straight away. Opening the link again opens your copy, or offers the newer version if the coach has updated it (your copy is replaced, keeping its place in the list). A failed download leaves nothing behind and can be retried.
+- **Sharing from the app** (next): a Share button in the session that uploads to Drive and gives you the link.
+
 **Clip format:** H.264 MP4 plays everywhere. iPhone recordings are HEVC (H.265) by default, which Chrome on many Windows PCs and Android phones can't play (sometimes it plays the sound with a black picture). The app checks each clip as it's added and says if it won't play on that device; the clip is kept, since it may play on the device you present from. To fix it, re-export the clip as H.264 MP4, or set the iPhone to *Settings → Camera → Formats → Most Compatible* before filming. If a clip won't play, the message under it gives the error code, the clip's format and size, where it's stored and the browser: a screenshot of it is enough to work out what's wrong.
 
 **Frame rate** is detected automatically the first time a clip plays (25 fps is assumed until then).
@@ -110,6 +117,7 @@ On Windows, tasks run in Command Prompt. If you type `npm` in a PowerShell termi
 | `reorder` | Drag to reorder with a mouse, and with real touch events on a phone (handle, swipe-scrolls, press-and-hold with auto-scroll) |
 | `auto-ring` | Auto-ring behaviour, plus **accuracy on 38 hand-marked players** in five real match photos: the right player is ringed and floor rings land near the feet. Fails if detection tuning regresses |
 | `offline` | With the service worker: the app and auto-ring (detector and pose model) keep working offline after first use |
+| `share` | Opening a share link, with Google Drive stood in for: the session card, downloading into a working session (clips, comments, shortcuts, drawings), reopening (up to date, or a newer version replacing the old copy), a dead link, a download that fails part-way (nothing left behind, retry works), and an unplayable shared clip flagged straight away |
 | `formats` | An iPhone HEVC clip in a browser that can't play it: warned when added, kept, and the player and present mode say why. File storage that reports success but keeps nothing: the app falls back to IndexedDB and the clip still plays after reload |
 
 Test clips are in `tests/e2e/fixtures/` (see its `CREDITS.md`). The same suite runs on GitHub for every push to `develop` and every pull request to `main` (`.github/workflows/tests.yml`).

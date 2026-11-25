@@ -2,14 +2,13 @@
 import { alertDialog, confirmDialog, progressDialog, toast } from '../lib/dialogs';
 import { h, icon, iconBtn } from '../lib/dom';
 import { getVideo } from '../lib/files';
-import { describeFormat, isHevc, type ClipFormat } from '../lib/codec';
-import { HEVC_ADVICE, confirmSoundOnly, playbackProblem, stepFrame, watchFps } from '../lib/media';
+import { confirmSoundOnly, playbackProblem, stepFrame, watchFps } from '../lib/media';
 import { addClips, deleteSlide, getSession, getSlides, moveSlide, saveSession, saveSlide } from '../lib/store';
 import { Annotator } from '../lib/draw';
 import { sortable } from '../lib/sortable';
 import type { Session, Shortcut, Slide } from '../lib/types';
 import { debounce, fmtBytes, fmtTime, isTyping, uid } from '../lib/util';
-import { CREST, go, runExport, startPresenting } from './actions';
+import { CREST, go, runExport, startPresenting, warnUnplayable } from './actions';
 import { drawBar } from './drawbar';
 
 export async function renderEditor(root: HTMLElement, sessionId: string, initialSlide?: string): Promise<() => void> {
@@ -97,18 +96,6 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
   );
 
   // ---- uploads (button or drag & drop) ----
-  function warnUnplayable(clips: { name: string; format: ClipFormat }[]) {
-    const names = clips.map((c) => `“${c.name}” (${describeFormat(c.format)})`).join(', ');
-    const hevc = clips.some((c) => isHevc(c.format));
-    return alertDialog(
-      clips.length === 1 ? "This clip won't play here" : `${clips.length} clips won't play here`,
-      hevc
-        ? `This browser can't play ${names}. HEVC (H.265) is the format iPhones record in by default. ` +
-            `The clip is saved and will play on devices that support HEVC, such as iPhones and Macs. ${HEVC_ADVICE}`
-        : `This browser can't play ${names}. The clip is saved, but re-export it as H.264 MP4 and add it again to play it here.`,
-    );
-  }
-
   async function uploadFiles(files: File[]) {
     const videos = files.filter((f) => f.type.startsWith('video/') || /\.(mp4|m4v|mov|webm|mkv)$/i.test(f.name));
     if (!videos.length) return toast('Those files are not videos');
