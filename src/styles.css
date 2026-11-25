@@ -290,7 +290,9 @@ textarea.input { resize: vertical; min-height: 96px; }
 .present-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 /* position: relative so a drawing canvas can later be layered exactly over the clip. */
 .stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; background: #000; border-radius: 12px; overflow: hidden; cursor: pointer; }
-.present-video { display: block; width: 100%; height: 100%; object-fit: contain; }
+/* Pinned to the stage: as a grid item its height: 100% didn't resolve, so a wide, short stage
+   let the video grow taller than the stage and clipped the bottom of the picture. */
+.present-video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
 .transport { flex: none; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
 .controls { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .scrub-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -544,6 +546,11 @@ kbd {
   .present-crest, .counter { display: none; }
   .controls .ctl { width: 34px; height: 34px; }
   .speed { min-width: 40px; }
+}
+/* Short laptop windows: a smaller drawing rail so every tool fits down the side. */
+@media (max-height: 700px) and (min-height: 501px) {
+  .tool { width: 38px; height: 38px; }
+  .drawbar.rail { gap: 3px; padding: 6px 4px; }
 }
 /* Phones in landscape: compact bars so the clip keeps most of the height. */
 @media (max-height: 500px) {

@@ -4,6 +4,7 @@ import { expect, test } from './test';
 import { COUNTER_PRESS, createSession, waitForVideo } from './helpers';
 
 const SIZES: [number, number][] = [
+  [1280, 585], [1536, 730], [1920, 940], // wide laptop and desktop windows (short for their width)
   [320, 640], [360, 740], [375, 667], [390, 844], [412, 915], // phones, portrait
   [640, 360], [667, 375], [740, 360], [844, 390], [915, 412], // phones, landscape
   [1024, 768], [1366, 820], // tablet, laptop
@@ -41,6 +42,8 @@ test('present mode fits phones, tablets and laptops in both orientations', async
         if (r.right > innerWidth + 0.5 || (r.bottom > innerHeight + 0.5 && !el.closest('.present-side, .tool-rail'))) out.push(`off screen: ${label}`);
       }
       const st = document.querySelector('.stage')!.getBoundingClientRect();
+      const vid = document.querySelector('.present-video')!.getBoundingClientRect();
+      if (vid.bottom > st.bottom + 0.5 || vid.top < st.top - 0.5) out.push(`clip picture cut off by ${Math.round(Math.max(vid.bottom - st.bottom, st.top - vid.top))}px`);
       for (const s of ['.present-top', '.transport', '.present-side', '.tool-rail']) {
         const o = document.querySelector(s)?.getBoundingClientRect();
         if (o && o.width && !(o.right <= st.left || o.left >= st.right || o.bottom <= st.top || o.top >= st.bottom)) out.push(`covers the clip: ${s}`);
@@ -66,6 +69,30 @@ test('present mode fits phones, tablets and laptops in both orientations', async
     await page.screenshot({ path: testInfo.outputPath(`present-${w}x${h}-picker.png`) });
     await page.keyboard.press('Escape');
     await expect(page.locator('.clip-menu')).toBeHidden();
+  }
+
+  // The same with the comments panel hidden (N): the clip gets the room, and the
+  // controls must still sit below it, fully on screen.
+  await page.keyboard.press('n');
+  await expect(page.locator('.present.panel-hidden')).toHaveCount(1);
+  for (const [w, h] of SIZES) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(150);
+    const found = await page.evaluate(() => {
+      const out: string[] = [];
+      const st = document.querySelector('.stage')!.getBoundingClientRect();
+      const tr = document.querySelector('.transport')!.getBoundingClientRect();
+      const vid = document.querySelector('.present-video')!.getBoundingClientRect();
+      // The video element must sit inside the stage, or the stage clips part of the picture.
+      if (vid.bottom > st.bottom + 0.5 || vid.top < st.top - 0.5) out.push(`clip picture cut off by ${Math.round(Math.max(vid.bottom - st.bottom, st.top - vid.top))}px`);
+      if (st.height < 40) out.push(`clip squashed to ${Math.round(st.height)}px`);
+      if (tr.top < st.bottom - 0.5) out.push(`controls overlap the clip by ${Math.round(st.bottom - tr.top)}px`);
+      if (tr.bottom > innerHeight + 0.5) out.push(`controls cut off by ${Math.round(tr.bottom - innerHeight)}px`);
+      if (st.bottom > innerHeight + 0.5) out.push(`clip runs off the bottom by ${Math.round(st.bottom - innerHeight)}px`);
+      return out;
+    });
+    problems.push(...found.map((f) => `${w}x${h} panel hidden: ${f}`));
+    await page.screenshot({ path: testInfo.outputPath(`present-${w}x${h}-no-panel.png`) });
   }
   expect(problems).toEqual([]);
 });
