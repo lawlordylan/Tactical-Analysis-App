@@ -43,7 +43,7 @@ export function slug(s: string): string {
   );
 }
 
-export function debounce<A extends unknown[]>(fn: (...a: A) => void, ms: number) {
+export function debounce<A extends unknown[]>(fn: (...a: A) => unknown, ms: number) {
   let t: number | undefined;
   let pending: A | null = null;
   const wrapped = (...a: A) => {
@@ -54,13 +54,13 @@ export function debounce<A extends unknown[]>(fn: (...a: A) => void, ms: number)
       fn(...a);
     }, ms);
   };
-  /** Run now if a call is waiting; otherwise do nothing. */
-  wrapped.flush = () => {
+  /** Run now if a call is waiting (returning what it returns); otherwise do nothing. */
+  wrapped.flush = (): unknown => {
     clearTimeout(t);
     if (pending) {
       const a = pending;
       pending = null;
-      fn(...a);
+      return fn(...a);
     }
   };
   /** Drop any waiting call. */

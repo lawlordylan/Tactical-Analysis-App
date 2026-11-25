@@ -65,14 +65,18 @@ export interface Session {
 }
 
 export interface SharedInfo {
-  /** Drive file id of the shared session.json: the id in the link (#/s/<link>). */
+  /** Drive file id of the shared session.json: the id in the link (#/s/<link>). Empty until a first share finishes. */
   link: string;
   /** 'in': downloaded from someone's link. 'out': this device shares it. */
   role: 'in' | 'out';
-  /** The shared copy's revision this session matches. */
+  /** The shared copy's revision this session matches. 0: a first share that hasn't finished. */
   revision: number;
   /** When that revision was shared (ISO date). */
   sharedAt: string;
+  /** 'out' only: the session's Drive folder. */
+  folder?: string;
+  /** 'out' only: each uploaded clip's Drive file id, by the clip's VideoRef id. */
+  files?: Record<string, string>;
 }
 
 /** session.json of a shared session in Google Drive: like an export, with clips as Drive files. */

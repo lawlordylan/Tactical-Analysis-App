@@ -4,7 +4,7 @@ A lightweight app for preparing and presenting post-match analysis sessions, bui
 
 Each **session** is a set of **slides**, like a slide deck. Every slide is one video clip with a title, comments, and optional **shortcuts**: named moments in the clip you can jump to while presenting.
 
-Everything is stored on the device. Nothing is uploaded anywhere. To move a session to another device, export it as a single `.analysis` file and import it there.
+Everything is stored on the device. To move a session to another device, export it as a single `.analysis` file and import it there, or share it as a link: the one time anything is uploaded is when a coach chooses **Share**, which puts that session in the club's Google Drive.
 
 ## Status: Phase 2 (drawing on video)
 
@@ -19,6 +19,7 @@ Working now:
 - **Auto-ring**: tap a player and a ring snaps to them (on-device player detection, works offline after first use)
 - Drawing on the video: arrows, lines, player rings and freehand, in five colours, solid or dashed (for runs), normal or thick. Undo and clear
 - Export a session to one `.analysis` file, import it on another device
+- **Share links**: share a session as a link through the club's Google Drive; anyone with the link downloads their own copy without signing in (see [Share links](#share-links))
 - Installable and works offline (PWA)
 
 Target browsers for the POC: Chrome/Edge on desktop and Chrome on Android. iPhone/iPad (Safari) is being worked on: clip saving and playback are tested in the iPhone Simulator on every push (see [Safari and iPhone tests](#safari-and-iphone-tests)), but present mode can't go fullscreen on an iPhone yet.
@@ -65,8 +66,8 @@ Click or tap the clip to play / pause. With a drawing tool selected, the clip is
 
 A coach can share a session as a link; anyone who opens it can download their own copy into the app, with no sign-in. The session's clips live in the club's Google Drive (one-off setup: [docs/google-drive-setup.md](docs/google-drive-setup.md)). Links don't expire; the coach can update the shared copy or stop sharing.
 
-- **Opening a link** (`#/s/<id>`, done): shows the session's name, clips, shortcuts and size, then downloads it straight into the device's storage, one clip at a time, with progress. Clips this device can't play are flagged straight away. Opening the link again opens your copy, or offers the newer version if the coach has updated it (your copy is replaced, keeping its place in the list). A failed download leaves nothing behind and can be retried.
-- **Sharing from the app** (next): a Share button in the session that uploads to Drive and gives you the link.
+- **Sharing** (**Share** in the session header): the first time, Google asks the coach to sign in and allow the app to use **only the files it creates** in Drive. The session uploads clip by clip with progress; a dropped connection carries on where it stopped, and a share that fails part-way carries on next time without re-uploading clips. The dialog then shows the link with **Send link** (the phone's share menu) and **Copy**, and warns if any clips are iPhone HEVC. **Update copy** sends later changes to the same link (only new clips are uploaded; removed clips are deleted from Drive). **Stop sharing** deletes the session from Drive, so the link stops working; copies people downloaded stay on their devices. Shared sessions show a **Shared** badge on the home page, and downloaded ones **From a link**.
+- **Opening a link** (`#/s/<id>`): shows the session's name, clips, shortcuts and size, then downloads it straight into the device's storage, one clip at a time, with progress. Clips this device can't play are flagged straight away. Opening the link again opens your copy, or offers the newer version if the coach has updated it (your copy is replaced, keeping its place in the list). A failed download leaves nothing behind and can be retried.
 
 **Clip format:** H.264 MP4 plays everywhere. iPhone recordings are HEVC (H.265) by default, which Chrome on many Windows PCs and Android phones can't play (sometimes it plays the sound with a black picture). The app checks each clip as it's added and says if it won't play on that device; the clip is kept, since it may play on the device you present from. To fix it, re-export the clip as H.264 MP4, or set the iPhone to *Settings → Camera → Formats → Most Compatible* before filming. If a clip won't play, the message under it gives the error code, the clip's format and size, where it's stored and the browser: a screenshot of it is enough to work out what's wrong.
 
@@ -118,6 +119,7 @@ On Windows, tasks run in Command Prompt. If you type `npm` in a PowerShell termi
 | `auto-ring` | Auto-ring behaviour, plus **accuracy on 38 hand-marked players** in five real match photos: the right player is ringed and floor rings land near the feet. Fails if detection tuning regresses |
 | `offline` | With the service worker: the app and auto-ring (detector and pose model) keep working offline after first use |
 | `share` | Opening a share link, with Google Drive stood in for: the session card, downloading into a working session (clips, comments, shortcuts, drawings), reopening (up to date, or a newer version replacing the old copy), a dead link, a download that fails part-way (nothing left behind, retry works), and an unplayable shared clip flagged straight away |
+| `share-out` | Sharing, with Google sign-in and Drive stood in for (`fake-drive.ts`): the Share dialog, the Drive folder shared with anyone with the link, opening the link on another device, Update copy (same link, only new clips uploaded, removed clips deleted, the other device offered the update), the home page badges, Stop sharing (files deleted, link dead, downloaded copies kept); a dropped connection and a Google error mid-upload; a full Drive part-way, then carrying on without re-uploading; closing the sign-in pop-up; a share deleted in Drive getting a new link |
 | `formats` | An iPhone HEVC clip in a browser that can't play it: warned when added, kept, and the player and present mode say why. File storage that reports success but keeps nothing: the app falls back to IndexedDB and the clip still plays after reload |
 
 Test clips are in `tests/e2e/fixtures/` (see its `CREDITS.md`). The same suite runs on GitHub for every push to `develop` and every pull request to `main` (`.github/workflows/tests.yml`).

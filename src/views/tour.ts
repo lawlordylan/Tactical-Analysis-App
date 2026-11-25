@@ -116,7 +116,7 @@ const ART = {
     <rect class="t-s1 t-ln" x="226" y="28" width="56" height="100" rx="8"/><rect class="t-pitch" x="231" y="40" width="46" height="76" rx="3"/>
     <path class="t-acc-ln" d="M140 72h76M206 64l10 8-10 8"/>
     <g transform="translate(158 92)"><path class="t-s2 t-ln" d="M0 0h30l10 10v34H0z"/><path class="t-ln" d="M30 0v10h10"/><rect class="t-club" x="4" y="30" width="32" height="9" rx="2"/></g>
-    <text class="t-mu-f" x="178" y="152" text-anchor="middle">Vs Rovers.analysis</text>`,
+    <text class="t-mu-f" x="178" y="152" text-anchor="middle">Share link · Export</text>`,
 };
 
 const STEPS: Step[] = [
@@ -191,11 +191,11 @@ const STEPS: Step[] = [
     ],
   },
   {
-    title: 'Take it with you',
+    title: 'Share a session',
     art: ART.share,
     body: [
-      h('p', null, 'Everything stays on this device; nothing is uploaded. To move a session to a laptop, tablet or phone, tap ', h('b', null, 'Export'), ' to save it as one file, then ', h('b', null, 'Import session'), ' on the other device.'),
-      h('p', null, 'Install the app from your browser’s menu and it works offline. Open this tour again any time from ', h('b', null, 'How it works'), ' on the home page.'),
+      h('p', null, 'Tap ', h('b', null, 'Share'), ' in a session to send it as a link. Anyone with the link can download their own copy, with no sign-in. Or tap ', h('b', null, 'Export'), ' to save it as one file and ', h('b', null, 'Import session'), ' on another device.'),
+      h('p', null, 'Sessions live on this device and work offline; install the app from your browser’s menu. Open this tour again any time from ', h('b', null, 'How it works'), ' on the home page.'),
     ],
   },
 ];

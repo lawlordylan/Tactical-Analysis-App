@@ -78,6 +78,12 @@ Send the **Client ID** and the **API key**. They go into the app's build
 settings (`src/lib/share-config.ts`) and are safe in a public repository
 because of the restrictions above.
 
+## Sharing from the app
+
+In a session, tap **Share** → **Share**. Sign in with the Google account above and
+allow access. The dialog shows the upload, then the link. **Update copy** sends
+later changes to the same link; **Stop sharing** deletes the session from Drive.
+
 ## What lands in your Drive
 
 - A folder **Killeshin Match Analysis – shared sessions**, with one subfolder per

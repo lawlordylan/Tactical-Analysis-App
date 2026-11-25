@@ -4,16 +4,19 @@
 // In Drive, a shared session is a folder holding each clip as its own file plus a
 // session.json (SharedManifest) listing the slides and their clips' Drive file ids. The link
 // is the app's address with #/s/<session.json's file id>. Opening it needs no sign-in: the
-// app downloads with an API key that only works from the app's own addresses.
+// app downloads with an API key that only works from the app's own addresses. Sharing signs in
+// to Google (drive.ts); the app can only see and change the Drive files it made itself.
 import { readClipFormat, type ClipFormat } from './codec';
 import * as db from './db';
 import { sanitizeShapes } from './draw';
+import { createFolder, deleteFile, folderNamed, replaceFile, shareWithAnyone, uploadFile } from './drive';
 import { deleteVideo, getVideo, requestPersistence, storeVideoStream } from './files';
 import { probeClip } from './media';
 import { getSlides, listSessions } from './store';
 import { GOOGLE_API_KEY } from './share-config';
-import type { Session, SharedManifest, Slide, VideoRef } from './types';
-import { uid } from './util';
+import { slideDetails } from './transfer';
+import type { Session, SharedInfo, SharedManifest, Slide, VideoRef } from './types';
+import { appVersion, uid } from './util';
 
 const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files';
 
@@ -78,7 +81,7 @@ export async function findLocalCopy(link: string): Promise<Session | undefined> 
 }
 
 export interface DownloadProgress {
-  /** Bytes downloaded so far, across all clips. */
+  /** Bytes downloaded (or uploaded) so far, across all clips. */
   done: number;
   total: number;
   /** 1-based clip number and clip count. */
@@ -178,4 +181,110 @@ export async function downloadShared(
     for (const v of stored) await deleteVideo(v);
     throw e;
   }
+}
+
+// ---- sharing (the coach's side) ----
+
+/** Every shared session gets its own folder inside this one, in the Drive of whoever signs in. */
+const SHARED_FOLDER = 'Killeshin Match Analysis – shared sessions';
+
+/** This session's live share, if this device shares it. (A first share that didn't finish isn't live.) */
+export function liveShare(session: Session): SharedInfo | undefined {
+  const sh = session.shared;
+  return sh?.role === 'out' && sh.revision > 0 && sh.link ? sh : undefined;
+}
+
+/** True when the session or any of its slides changed after it was last shared. */
+export function changedSinceShared(session: Session, slides: Slide[]): boolean {
+  const sh = liveShare(session);
+  if (!sh) return false;
+  const at = Date.parse(sh.sharedAt);
+  return session.updatedAt > at || slides.some((s) => s.updatedAt > at);
+}
+
+/** Saves the session's share details without counting as an edit. */
+const keep = (session: Session) => db.put('sessions', session);
+
+/**
+ * Shares a session, or updates its shared copy (same link, revision + 1). Uploads only clips
+ * that aren't in Drive yet, then writes session.json, then removes clips the session no longer
+ * has. An interrupted first share carries on in the same folder next time. `session` is
+ * updated in place, so a screen holding it keeps the share details when it next saves.
+ */
+export async function publishSession(
+  session: Session,
+  token: string,
+  onProgress?: (p: DownloadProgress) => void,
+  signal?: AbortSignal,
+): Promise<SharedInfo> {
+  const slides = await getSlides(session);
+  const prev = session.shared?.role === 'out' ? session.shared : undefined;
+  const files: Record<string, string> = { ...(prev?.files ?? {}) };
+  let folder = prev?.folder;
+  if (!folder) {
+    const parent = await folderNamed(token, SHARED_FOLDER);
+    folder = await createFolder(token, `${session.title} · ${new Date().toISOString().slice(0, 10)}`, parent);
+    await shareWithAnyone(token, folder);
+    session.shared = { link: '', role: 'out', revision: 0, sharedAt: '', folder, files };
+    await keep(session);
+  }
+  const out = session.shared!;
+
+  const toSend = slides.filter((s) => s.video && !files[s.video.id]).map((s) => s.video!);
+  const total = toSend.reduce((n, v) => n + v.size, 0);
+  let before = 0;
+  for (let i = 0; i < toSend.length; i++) {
+    const v = toSend[i];
+    const base = before;
+    const report = (d: number) => onProgress?.({ done: base + d, total, clip: i + 1, clips: toSend.length });
+    files[v.id] = await uploadFile(token, await getVideo(v), { name: v.name, type: v.type, parent: folder }, report, signal);
+    before += v.size;
+    out.files = { ...files };
+    await keep(session);
+  }
+
+  const revision = (prev?.revision ?? 0) + 1;
+  const manifest: SharedManifest = {
+    format: 'tactical-analysis-share',
+    version: 1,
+    revision,
+    sharedAt: new Date().toISOString(),
+    app: `tactical-analysis-app ${appVersion()}`.trim(),
+    session: { title: session.title, createdAt: session.createdAt, updatedAt: session.updatedAt },
+    slides: slides.map((s) => ({
+      ...slideDetails(s),
+      video: s.video ? { id: files[s.video.id], name: s.video.name, type: s.video.type, size: s.video.size } : null,
+    })),
+  };
+  const body = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+  let link = out.link;
+  if (link) await replaceFile(token, link, body);
+  else link = await uploadFile(token, body, { name: 'session.json', type: 'application/json', parent: folder }, undefined, signal);
+
+  // Clips taken out of the session: only now, so anyone mid-download of the old version can finish.
+  const used = new Set(slides.map((s) => s.video?.id));
+  for (const [videoId, fileId] of Object.entries(files)) {
+    if (used.has(videoId)) continue;
+    await deleteFile(token, fileId).catch(() => {});
+    delete files[videoId];
+  }
+
+  session.shared = { link, role: 'out', revision, sharedAt: manifest.sharedAt, folder, files };
+  await keep(session);
+  return session.shared;
+}
+
+/** Deletes the shared copy from Drive, so the link stops working. Copies people downloaded stay. */
+export async function stopSharing(session: Session, token: string): Promise<void> {
+  const sh = session.shared;
+  if (sh?.role !== 'out') return;
+  if (sh.folder) await deleteFile(token, sh.folder);
+  delete session.shared;
+  await keep(session);
+}
+
+/** Forgets a share whose Drive folder has gone (deleted in Drive), so the next share starts afresh. */
+export async function forgetShare(session: Session): Promise<void> {
+  delete session.shared;
+  await keep(session);
 }

@@ -105,7 +105,8 @@ let toastTimer: number | undefined;
 export function toast(message: string) {
   document.querySelector('.toast')?.remove();
   const t = h('div', { class: 'toast', role: 'status' }, message);
-  document.body.append(t);
+  // Inside an open dialog, or the dialog's backdrop would cover it.
+  (document.querySelector('dialog[open]') ?? document.body).append(t);
   clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => t.remove(), 2600);
 }

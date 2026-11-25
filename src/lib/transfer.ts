@@ -29,6 +29,18 @@ function safeName(name: string): string {
   return name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(-120) || 'clip';
 }
 
+/** A slide as written to session.json (exports and share links), apart from its clip. */
+export function slideDetails(s: Slide): Omit<SessionManifest['slides'][number], 'video'> {
+  return {
+    title: s.title,
+    notes: s.notes,
+    shortcuts: s.shortcuts.map(({ title, time, drawing }) => ({ title, time, ...(drawing?.length ? { drawing } : {}) })),
+    duration: s.duration,
+    fps: s.fps,
+    thumb: s.thumb,
+  };
+}
+
 async function buildEntries(session: Session): Promise<ZipInput[]> {
   const slides = await getSlides(session);
   const manifest: SessionManifest = {
@@ -48,15 +60,7 @@ async function buildEntries(session: Session): Promise<ZipInput[]> {
       clips.push({ name: path, data: await getVideo(s.video) });
       video = { path, name: s.video.name, type: s.video.type, size: s.video.size };
     }
-    manifest.slides.push({
-      title: s.title,
-      notes: s.notes,
-      shortcuts: s.shortcuts.map(({ title, time, drawing }) => ({ title, time, ...(drawing?.length ? { drawing } : {}) })),
-      duration: s.duration,
-      fps: s.fps,
-      thumb: s.thumb,
-      video,
-    });
+    manifest.slides.push({ ...slideDetails(s), video });
   }
   const json = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
   return [{ name: 'session.json', data: json }, ...clips];

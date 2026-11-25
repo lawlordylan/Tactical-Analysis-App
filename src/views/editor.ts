@@ -10,6 +10,7 @@ import type { Session, Shortcut, Slide } from '../lib/types';
 import { debounce, fmtBytes, fmtTime, isTyping, uid } from '../lib/util';
 import { CREST, go, runExport, startPresenting, warnUnplayable } from './actions';
 import { drawBar } from './drawbar';
+import { openShareDialog } from './share-dialog';
 
 export async function renderEditor(root: HTMLElement, sessionId: string, initialSlide?: string): Promise<() => void> {
   const loaded = await getSession(sessionId);
@@ -21,6 +22,8 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
   let slides: Slide[] = await getSlides(session);
   let selectedId: string | null = initialSlide && slides.some((s) => s.id === initialSlide) ? initialSlide : (slides[0]?.id ?? null);
   let cleanupDetail: () => void = () => {};
+  /** Saves the selected slide's typing now rather than after the usual pause. */
+  let flushSlide: () => unknown = () => {};
 
   const fileInput = h('input', { type: 'file', accept: 'video/*', multiple: true, hidden: true });
   fileInput.addEventListener('change', () => {
@@ -73,6 +76,20 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
         'div',
         { class: 'topbar-actions' },
         h('button', { class: 'btn', type: 'button', onclick: () => runExport(session) }, icon('export'), h('span', { class: 'label' }, 'Export')),
+        h(
+          'button',
+          {
+            class: 'btn',
+            type: 'button',
+            onclick: async () => {
+              // The shared copy should include anything just typed.
+              await Promise.all([saveTitle.flush(), flushSlide()]);
+              openShareDialog(session);
+            },
+          },
+          icon('share'),
+          h('span', { class: 'label' }, 'Share'),
+        ),
         h(
           'button',
           { class: 'btn primary', type: 'button', onclick: () => (slides.length ? startPresenting(session.id, 0) : toast('Add clips before presenting')) },
@@ -215,6 +232,7 @@ export async function renderEditor(root: HTMLElement, sessionId: string, initial
 
   function buildDetail(slide: Slide): () => void {
     const save = debounce(() => saveSlide(slide, session), 400);
+    flushSlide = () => save.flush();
     const video = h('video', { class: 'editor-video', controls: true, playsInline: true, preload: 'auto' });
     const playerMsg = h('div', { class: 'player-msg', hidden: true });
     let url: string | null = null;

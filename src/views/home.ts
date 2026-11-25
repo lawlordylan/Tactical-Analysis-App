@@ -2,6 +2,7 @@
 import { confirmDialog, promptDialog, toast } from '../lib/dialogs';
 import { h, icon, iconBtn } from '../lib/dom';
 import { storageInfo } from '../lib/files';
+import { liveShare } from '../lib/share';
 import { createSession, deleteSession, getSlide, listSessions } from '../lib/store';
 import type { Session } from '../lib/types';
 import { appVersion, fmtBytes, fmtDate } from '../lib/util';
@@ -108,7 +109,21 @@ export async function renderHome(root: HTMLElement): Promise<() => void> {
         'button',
         { class: 'session-open', type: 'button', onclick: () => go(`#/session/${s.id}`), 'aria-label': `Open ${s.title}` },
         h('div', { class: 'thumb' }, first?.thumb ? h('img', { src: first.thumb, alt: '' }) : h('img', { class: 'thumb-crest', src: CREST, alt: '' })),
-        h('div', { class: 'session-meta' }, h('h3', null, s.title), h('p', { class: 'muted small' }, `${n} clip${n === 1 ? '' : 's'} · ${fmtDate(s.updatedAt)}`)),
+        h(
+          'div',
+          { class: 'session-meta' },
+          h('h3', null, s.title),
+          h(
+            'p',
+            { class: 'muted small' },
+            `${n} clip${n === 1 ? '' : 's'} · ${fmtDate(s.updatedAt)}`,
+            liveShare(s)
+              ? h('span', { class: 'session-badge', title: 'Shared as a link' }, icon('share'), 'Shared')
+              : s.shared?.role === 'in'
+                ? h('span', { class: 'session-badge in', title: "Downloaded from someone's share link" }, icon('import'), 'From a link')
+                : null,
+          ),
+        ),
       ),
       h(
         'div',
@@ -116,7 +131,10 @@ export async function renderHome(root: HTMLElement): Promise<() => void> {
         iconBtn('present', 'Present', () => (n ? startPresenting(s.id) : toast('Add clips before presenting'))),
         iconBtn('export', 'Export', () => runExport(s)),
         iconBtn('trash', 'Delete', async () => {
-          if (await confirmDialog('Delete session?', `“${s.title}” and its ${n} clip${n === 1 ? '' : 's'} will be removed from this device.`, 'Delete', true)) {
+          const shared = liveShare(s)
+            ? ' Its share link keeps working: to stop it, open the session and choose Share, then Stop sharing, before deleting.'
+            : '';
+          if (await confirmDialog('Delete session?', `“${s.title}” and its ${n} clip${n === 1 ? '' : 's'} will be removed from this device.${shared}`, 'Delete', true)) {
             await deleteSession(s.id);
             toast('Session deleted');
             refresh();
