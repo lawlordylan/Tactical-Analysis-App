@@ -4,6 +4,11 @@ import { expect, test, type Page } from './test';
 import { APP, BUILD_UP, COUNTER_PRESS, createSession } from './helpers';
 import { FakeDrive } from './fake-drive';
 
+// Chromium only: Playwright's WebKit can't stand in for Drive's uploads. It can't answer a request
+// with Drive's "308 Resume Incomplete" and doesn't hand upload bodies (Blobs) to the route. Real
+// uploads from Safari are checked by hand on an iPhone.
+test.skip(({ browserName }) => browserName !== 'chromium', 'needs request interception that can fake Drive uploads');
+
 const SHARED_FOLDER = 'Killeshin Match Analysis – shared sessions';
 const dialog = (page: Page) => page.locator('dialog.share-dialog');
 
