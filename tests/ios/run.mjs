@@ -211,7 +211,21 @@ async function runSimulator() {
   };
   try {
     await sleep(2000);
-    await openUrl(dev.udid, `${base}/selftest/`);
+    // Safari sometimes doesn't open the page on a freshly booted Simulator. The page logs
+    // its first lines within seconds, so if nothing arrives in a minute, open it again.
+    for (let attempt = 1; ; attempt++) {
+      await openUrl(dev.udid, `${base}/selftest/`);
+      const started = await Promise.race([
+        report.then(() => true),
+        (async () => {
+          for (let t = 0; t < 60 && !progress.length; t++) await sleep(1000);
+          return progress.length > 0;
+        })(),
+      ]);
+      if (started || attempt >= 3) break;
+      console.log(`  the page didn't start (attempt ${attempt}); opening it again`);
+      shot(`0-not-started-${attempt}.png`);
+    }
     const r = await waitForReport(300_000);
     shot('1-selftest.png');
     if (r.sessionId) {
