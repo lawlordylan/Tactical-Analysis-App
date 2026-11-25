@@ -1,0 +1,23 @@
+{
+ "about": "Test files in the club Google Drive, shared as anyone-with-the-link (made by spike/drive). The iPhone self-test downloads them without signing in, as a share link would. Reported only; delete this file to skip the check.",
+ "files": [
+  {
+   "id": "1LS2LQ94oeTRntsWd5GDdYTJOMQv3J3A_",
+   "name": "h264.mp4",
+   "size": 152840,
+   "adler": 468450052
+  },
+  {
+   "id": "1cDvxCTStlqiiNEH2Dey5XqboVztJ58Zv",
+   "name": "hevc.mov",
+   "size": 128995,
+   "adler": 3142086764
+  },
+  {
+   "id": "1bFZp4nUdpfvo5r5rMbpMP_yt0T2Q9X-A",
+   "name": "big-test.bin",
+   "size": 104857600,
+   "adler": 92236478
+  }
+ ]
+}

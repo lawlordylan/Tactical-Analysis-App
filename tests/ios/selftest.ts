@@ -5,6 +5,7 @@
 import { describeFormat, readClipFormat } from '../../src/lib/codec';
 import { getVideo, storageInfo } from '../../src/lib/files';
 import { browserLabel } from '../../src/lib/media';
+import { GOOGLE_API_KEY } from '../../src/lib/share-config';
 import { addClips, createSession, getSession, getSlides } from '../../src/lib/store';
 import { exportSession, importSession } from '../../src/lib/transfer';
 
@@ -202,6 +203,49 @@ async function phase1() {
   setTimeout(() => location.replace(`${location.pathname}?phase=2`), 300);
 }
 
+/**
+ * Share links: download test files from the club's Google Drive without signing in, as
+ * someone opening a share link would (tests/ios/drive-check.json). Reported only, since it
+ * depends on those files still being in Drive. Needs the page on an origin the API key allows.
+ */
+async function driveCheck() {
+  const r = await fetch('/selftest/drive-check.json');
+  if (!r.ok) return;
+  const { files } = (await r.json()) as { files: { id: string; name: string; size: number; adler: number }[] };
+  for (const f of files) {
+    const t0 = performance.now();
+    try {
+      const res = await withTimeout(fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${GOOGLE_API_KEY}`), 30_000, 'Drive request');
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      // Streamed, as the app will write it straight to storage; only small files are kept to play.
+      const reader = res.body!.getReader();
+      let got = 0;
+      let a = 1;
+      let b = 0;
+      const keep: Uint8Array[] = [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        got += value.length;
+        for (let i = 0; i < value.length; i++) {
+          a = (a + value[i]) % 65521;
+          b = (b + a) % 65521;
+        }
+        if (f.size < 20e6) keep.push(value);
+      }
+      const match = got === f.size && ((b << 16) | a) >>> 0 === f.adler;
+      const secs = ((performance.now() - t0) / 1000).toFixed(1);
+      check(`share link: download ${f.name}`, match, `${got} of ${f.size} bytes in ${secs} s${match ? '' : ', contents differ'}`, true);
+      if (match && keep.length && /\.(mp4|mov)$/.test(f.name)) {
+        const p = await playTest(new Blob(keep as BlobPart[], { type: f.name.endsWith('.mov') ? 'video/quicktime' : 'video/mp4' }), f.name);
+        check(`share link: play ${f.name}`, p.ok, p.detail, true);
+      }
+    } catch (e) {
+      check(`share link: download ${f.name}`, false, (e as Error).message, true);
+    }
+  }
+}
+
 async function phase2() {
   const id = sessionStorage.getItem('selftest-session');
   const session = id ? await getSession(id) : undefined;
@@ -220,6 +264,7 @@ async function phase2() {
       }
     }
   }
+  await driveCheck();
   const failed = checks.filter((c) => !c.ok && !c.info);
   statusEl.textContent = failed.length ? `FAILED: ${failed.length} check${failed.length > 1 ? 's' : ''}` : 'PASSED';
   statusEl.className = failed.length ? 'fail' : 'ok';

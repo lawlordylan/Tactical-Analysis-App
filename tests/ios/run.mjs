@@ -91,6 +91,9 @@ const server = createServer((req, res) => {
     });
     return;
   }
+  if (path === '/selftest/drive-check.json') {
+    return existsSync('tests/ios/drive-check.json') ? sendFile(res, resolve('tests/ios/drive-check.json')) : res.writeHead(404).end();
+  }
   if (path.startsWith('/selftest/fixtures/')) {
     const name = path.slice('/selftest/fixtures/'.length);
     return FIXTURES.has(name) ? sendFile(res, resolve('tests/e2e/fixtures', name)) : res.writeHead(404).end();
